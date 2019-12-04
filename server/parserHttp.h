@@ -3,12 +3,15 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <map>
+
+using HttpRequest_t = std::map<std::string, std::string>;
 
 class ParserHttp {
 public:
 	ParserHttp(const std::string& p_msg) : msg{p_msg} {};
 	
-	std::optional<std::string> parse();
+	std::optional<HttpRequest_t> parse();
 
 	std::optional<std::string> parseStartLine();
 	void parseMethod();
@@ -16,13 +19,13 @@ public:
 	// void parseQueryString();
 	void parseHttpMethod();
 
-	void parseHeaders();
+	void parseHeaders(std::vector<std::string>& headers);
 	void parseHeader();
 
 	void parseBody();
 
 private:
-	std::vector<std::string> splitString(const std::string& str, const std::string& delims);
+	HttpRequest_t http_request;
 
 	const std::string& msg;
 	std::vector<std::string> start_line;

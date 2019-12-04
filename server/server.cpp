@@ -3,6 +3,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <netdb.h>
+
+#include <boost/algorithm/string.hpp>
 
 #include <iostream>
 #include <string>
@@ -10,7 +13,6 @@
 #include <array>
 
 #include "getTime.h"
-#include "parserHttp.h"
 #include "httpResponseBuilder.h"
 
 
@@ -116,7 +118,7 @@ void Server::recvAndSend(int receiving_socket) {
 	send(receiving_socket, resp); 
 }
 
-std::optional<std::string> Server::recv(int receiving_socket) {
+std::optional<HttpRequest_t> Server::recv(int receiving_socket) {
 	auto msg = receiver.recv(receiving_socket);
 	if(msg) {
 		ParserHttp prs{*msg};
@@ -127,8 +129,42 @@ std::optional<std::string> Server::recv(int receiving_socket) {
 	return std::nullopt;
 }
 
-void Server::send(int receiving_socket, const std::optional<std::string>& buffer) {
-	auto response = HttpResponseBuilder(buffer).build();
+void Server::send(int receiving_socket, const std::optional<HttpRequest_t>& request) {
+	if(request->find("METHOD")->second == "CONNECT") {
+		std::vector<std::string> host;
+		boost::split(host, request->find("Host")->second, boost::is_any_of(":")); 
+		std::cout << host[0] << ' ' << host[1] << std::endl;
+		auto hostaddr = gethostbyname(host[0].c_str());
+		if(hostaddr != NULL){
+			std::cout << hostaddr->h_name << std::endl;
+			std::cout << hostaddr->h_addr_list[0] << std::endl;
+		}
+		else std::cout << "NULL\n";
+
+		auto serv_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+		if (serv_sock == ERROR_STATUS) {
+			logger.logStatusError("socket", serv_sock);
+			return;
+		}
+
+		int optval = 1;
+	    setsockopt(serv_sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
+
+	    sockaddr_in address;
+	    address.sin_family = AF_INET;
+		address.sin_port = htons(std::stoi(host[1]));
+		address.sin_addr = in_addr{ inet_addr(hostaddr->h_addr_list[0]) };
+
+	    auto connect_status = ::connect(serv_sock, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
+
+		if (connect_status == -1) {
+			logger.logStatusError("connect", connect_status);
+			if(errno != EINPROGRESS)
+				return;
+		}
+	}
+
+	auto response = HttpResponseBuilder(request->find("PATH")->second).build();
 	std::cout << "send\n" << response;
 
 	auto send_status = ::send(receiving_socket, response.c_str(), response.length(), 0);

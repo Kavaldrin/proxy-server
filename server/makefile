@@ -2,8 +2,8 @@ CC = g++
 DEBUG = -g
 SRC = $(wildcard *.cpp)
 OBJS = $(SRC:.cpp=.o)
-CPPFLAGSC = -Wall -c $(DEBUG) -MMD -std=c++17
-CPPFLAGS = -Wall $(DEBUG) -MF -MM -std=c++17
+CPPFLAGSC = -Wall -c $(DEBUG) -MMD -std=c++17 -lboost_regex
+CPPFLAGS = -Wall $(DEBUG) -MF -MM -std=c++17 -lboost_regex
 LIBS = $(wildcard *.h)
 EXE = PiSC
 DEPS := $(OBJS:.o=.d)

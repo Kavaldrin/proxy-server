@@ -1,11 +1,14 @@
 #pragma once
 
 #include <sys/socket.h>
-#include <vector>
-#include <memory>
 #include <netinet/in.h>
 #include <poll.h>
+
+#include <vector>
+#include <memory>
 #include <optional>
+
+#include "parserHttp.h"
 #include "logger.h"
 #include "receiver.h"
 
@@ -23,8 +26,8 @@ private:
 	void accept();
 	void startPoll();
 	void recvAndSend(int receiving_socket);
-	std::optional<std::string> recv(int receiving_socket);
-	void send(int receiving_socket, const std::optional<std::string>& buffer);
+	std::optional<HttpRequest_t> recv(int receiving_socket);
+	void send(int receiving_socket, const std::optional<HttpRequest_t>& buffer);
 
 	int sock_receiving;
 	std::vector<pollfd> pollfd_list;
