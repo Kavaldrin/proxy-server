@@ -32,6 +32,7 @@ struct NoMethodException : public std::exception
 { const char* what() const throw() { return "NoMethodException"; } };
 
 std::optional<HttpRequest_t> ParserHttp::parse() {
+	http_request.insert({"MSG", msg});
 	auto resp = parseStartLine();
 	parseHeader();
 	return http_request;
@@ -106,12 +107,13 @@ void ParserHttp::parseHeader() {
 
 void ParserHttp::parseHeaders(std::vector<std::string>& headers) {
 	std::vector<std::string> headerName_headerVal;
-	
+
 	for(auto header : headers){
 		boost::algorithm::split_regex(headerName_headerVal, header, boost::regex(": "));
 		http_request.insert({headerName_headerVal[0], headerName_headerVal[1]});
 
-		std::cout << "h " << header << std::endl;
+		std::cout << "h " << headerName_headerVal[0] << ": " 
+		                  << headerName_headerVal[1] << std::endl;
 	}
 }
 
