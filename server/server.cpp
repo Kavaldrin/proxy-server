@@ -142,15 +142,15 @@ void Server::send(int receiving_socket, const std::optional<HttpRequest_t>& requ
 			if(host.size() == 1)
 				host.push_back("80");
 
-			std::cout << "konec: " << host[0] << std::endl << host[1] << std::endl;
+			std::cout << "koniec: " << host[0] << std::endl << host[1] << std::endl;
 		}
 		else std::cout << "no host name\n";
 
-		std::cout << host[0].c_str() << std::endl;
-		auto hostaddr = gethostbyname(host[0].c_str());
-		if(hostaddr != NULL){
-			std::cout << hostaddr->h_name << std::endl;
-			std::cout << hostaddr->h_addr_list[0] << std::endl;
+		addrinfo* info;
+		auto hostaddr = getaddrinfo(host[0].c_str(), host[1].c_str(), NULL, &info);
+		if(hostaddr != -1){
+			// std::cout << hostaddr->h_name << std::endl;
+			// std::cout << hostaddr->h_addr_list[0] << std::endl;
 		}
 		else {
 			std::cout << "NULL\n";
@@ -165,19 +165,24 @@ void Server::send(int receiving_socket, const std::optional<HttpRequest_t>& requ
 
 		int optval = 1;
 	    setsockopt(serv_sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
+		auto target = *(sockaddr_in*)(info->ai_addr);
 
-	    sockaddr_in address;
-	    address.sin_family = AF_INET;
-		address.sin_port = htons(std::stoi(host[1]));
-		address.sin_addr.s_addr = *(long *)(hostaddr->h_addr_list[0]);
+		std::cout << "recv from"
+	    << " address = " << inet_ntoa(target.sin_addr)
+	    << " port = " << ntohs(target.sin_port)
+	    << " family = " << (target.sin_family)
+		<< std::endl;
+	 //    address.sin_family = AF_INET;
+		// address.sin_port = htons(std::stoi(host[1]));
+		// address.sin_addr.s_addr = *(long *)(hostaddr->h_addr_list[0]);
 
 		while(1){
-		    auto connect_status = ::connect(serv_sock, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
+		    auto connect_status = ::connect(serv_sock, reinterpret_cast<const sockaddr*>(&(target)), sizeof(target));
 
 			if (connect_status == -1) {
 				logger.logStatusError("connect", connect_status);
 				// if(errno != EINPROGRESS)
-					// return;
+					return;
 			}
 			else break;
 		}
