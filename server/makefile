@@ -14,10 +14,10 @@ all: $(SRC) $(EXE)
 -include $(DEPS)
 
 $(EXE): $(OBJS)
-	$(CC) $(CPPFLAGS) $(OBJS) -o $@
+	$(CC)  $(OBJS) $(CPPFLAGS) -o $@
 
 .cpp.o:
-	$(CC) $(CPPFLAGSC) $< -o $@
+	$(CC)  $< $(CPPFLAGSC) -o $@
 
 .PHONY: clean cleanall valgrind gdb run tar generator
 
