@@ -12,8 +12,15 @@
 #include <algorithm>
 #include <array>
 
-#include "getTime.h"
 #include "httpResponseBuilder.h"
+#include <thread>
+#include <chrono>
+
+//TO DO
+//connect zaimplementowac
+//zmienic senda
+//naprawic bugi bo wiem ze beda
+
 
 
 constexpr int ERROR_STATUS = -1;
@@ -70,7 +77,8 @@ void Server::listen() {
 
 void Server::startPoll() {
 	while(1) {
-		int poll_result = poll(pollfd_list.data(), pollfd_list.size(), -1);
+		
+		int poll_result = poll(pollfd_list.data(), pollfd_list.size(), -1 /*no timeout */);
 
 		if (poll_result == ERROR_STATUS) {
 			logger.logStatusError("poll", poll_result);
@@ -113,24 +121,85 @@ void Server::accept() {
 		  	  << " protocol = " << sender_addr_in.sin_family << std::endl;
 }
 
-void Server::recvAndSend(int receiving_socket) {
-	auto resp = recv(receiving_socket);	
-	send(receiving_socket, resp); 
+int Server::connect(std::string destination)
+{
+	auto hostaddr = gethostbyname(destination.c_str());
+	if(hostaddr != NULL)
+	{
+		// std::cout << hostaddr->h_name << std::endl;
+		// std::cout << hostaddr->h_addr_list[0] << std::endl;
+
+		struct in_addr **addr_list;
+		addr_list = (struct in_addr **)hostaddr->h_addr_list;
+		char* ipAddr = inet_ntoa(*addr_list[0]);
+		std::cout << ipAddr << std::endl;
+	}
+	else {
+		std::cout << "NULL\n";
+		std::cout << strerror(h_errno) << std::endl;
+	}
+
+
+
+
 }
 
-std::optional<HttpRequest_t> Server::recv(int receiving_socket) {
-	auto msg = receiver.recv(receiving_socket);
-	if(msg) {
-		ParserHttp prs{*msg};
-		auto resp = prs.parse();
+void Server::recvAndSend(int receiving_socket) {
+	
 
-		return resp;
+	recv(receiving_socket);
+	
+}
+
+bool Server::recv(int receiving_socket) {
+	
+	auto message = receiver.recv(receiving_socket);	
+
+	if(auto pairSocket = m_proxyManager.getSecondSocketIfEstablishedConnection(receiving_socket);
+		pairSocket.has_value())
+	{
+		m_proxyManager.addDataForDescriptor(pairSocket.value(), std::move(message));
+		return true;
 	}
-	return std::nullopt;
+
+	ParserHttp parser( std::string_view( message.data() ) );
+
+	if(parser.isHTTPRequest())
+	{
+		auto[method, destination] = parser.parseStartLine();
+		if(!method.has_value() || !method.has_value())
+		{
+			//header jest inwalida, to jakis moze bad request
+		}
+
+		if(parser.parseMethod() == std::string("CONNECT"))
+		{
+			int new_sock = connect(destination.value());
+			if(new_sock != -1)
+			{
+				m_proxyManager.addEstablishedConnection(receiving_socket, new_sock);
+				m_proxyManager.addDataForDescriptor(new_sock, std::move(message));
+				return true;
+			}
+		}
+		else
+		{
+			//odpowiedz requesterowi
+			//m_proxyManager.addDataForDescriptor(receiving_socket, /*wygenerowana wiadomosc http*/);
+			//return true;
+		}
+	}
+	else
+	{
+		//not implemented
+		//m_proxyManager.addDataForDescriptor(receiving_socket, /*wygenerowana wiadomosc http*/);
+		//return true;
+	}
+	return false;
 }
 
 void Server::send(int receiving_socket, const std::optional<HttpRequest_t>& request) {
-	std::cout << "send\n";
+
 	if(request->find("METHOD")->second == "GET") {
 		std::vector<std::string> host;
 
@@ -142,15 +211,24 @@ void Server::send(int receiving_socket, const std::optional<HttpRequest_t>& requ
 			if(host.size() == 1)
 				host.push_back("80");
 
-			std::cout << "konec: " << host[0] << std::endl << host[1] << std::endl;
+			std::cout << "konec: " << host[0] << " " << host[1] << std::endl;
 		}
 		else std::cout << "no host name\n";
 
-		std::cout << host[0].c_str() << std::endl;
+		host[0].erase(std::remove_if(host[0].begin(), host[0].end(), [&](const auto& ch){ return (ch == '\n' || ch == '\r'); } ));
+
+		host[0] += '\0';
+		std::cout << "A" << host[0].c_str() << "A" << std::endl;
 		auto hostaddr = gethostbyname(host[0].c_str());
+		//auto hostaddr = gethostbyname("www.fis.agh.edu.pl");
 		if(hostaddr != NULL){
-			std::cout << hostaddr->h_name << std::endl;
-			std::cout << hostaddr->h_addr_list[0] << std::endl;
+			// std::cout << hostaddr->h_name << std::endl;
+			// std::cout << hostaddr->h_addr_list[0] << std::endl;
+
+			struct in_addr **addr_list;
+			addr_list = (struct in_addr **)hostaddr->h_addr_list;
+			char* ipAddr = inet_ntoa(*addr_list[0]);
+			std::cout << ipAddr << std::endl;
 		}
 		else {
 			std::cout << "NULL\n";
@@ -171,16 +249,17 @@ void Server::send(int receiving_socket, const std::optional<HttpRequest_t>& requ
 		address.sin_port = htons(std::stoi(host[1]));
 		address.sin_addr.s_addr = *(long *)(hostaddr->h_addr_list[0]);
 
-		while(1){
-		    auto connect_status = ::connect(serv_sock, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
+		// while(1){
+		//     auto connect_status = ::connect(serv_sock, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
 
-			if (connect_status == -1) {
-				logger.logStatusError("connect", connect_status);
-				// if(errno != EINPROGRESS)
-					// return;
-			}
-			else break;
-		}
+		// 	if (connect_status == -1) {
+		// 		logger.logStatusError("connect", connect_status);
+		// 		// if(errno != EINPROGRESS)
+		// 			// return;
+		// 	}
+		// 	else break;
+		// }
+		std::this_thread::sleep_for(std::chrono::seconds(2));
 
 		auto msg = request->find("MSG")->second;
 
@@ -225,4 +304,3 @@ void Server::send(int receiving_socket, const std::optional<HttpRequest_t>& requ
 	logger.logStatus("send", send_status);
 	receiver.saveSocketToClose(receiving_socket);
 }
-

@@ -14,36 +14,36 @@ constexpr int CLOSE_STATUS = 0;
 constexpr unsigned BUFFER_SIZE = 8196;
 
 
-std::optional<std::string> Receiver::recv(socket_t receiving_socket) {
-	std::optional<std::string> msg{};
+std::vector<char> Receiver::recv(socket_t receiving_socket) {
+	
+	std::vector<char>  buffer{}; 
+	buffer.reserve(BUFFER_SIZE);
 
 	while(1) {
-		std::array<char, BUFFER_SIZE> buffer;
 		auto recv_status = ::recv(receiving_socket, buffer.data(), buffer.max_size(), MSG_DONTWAIT);
 
 		if (recv_status == ERROR_STATUS) {
-			logger.logStatusError("recv err", recv_status);
+			LoggerLogStatusErrorWithLineAndFile("recv err", recv_status);
 
 			if(errno == EAGAIN or errno == EWOULDBLOCK) {
 				break;
 			}
 			saveSocketToClose(receiving_socket);
-			return std::nullopt;
+			return std::vector<char>{};
 		}
 		if (recv_status == CLOSE_STATUS) {
-			logger.logStatusError("recv", recv_status);
+			LoggerLogStatusErrorWithLineAndFile("recv", recv_status);
 
-			if(not msg) {
+			if(buffer.empty()) {
 				saveSocketToClose(receiving_socket);
-				return std::nullopt;
+				return std::vector<char>{};
 			}
 
 			break;
 		}
 
-		auto string_end = std::find(buffer.begin(), buffer.end(), '\0');
-		std::string msg_part{buffer.begin(), string_end};
-		(*msg) += msg_part;
+		//auto string_end = std::find(buffer.begin(), buffer.end(), '\0');
+		//std::string msg_part{buffer.begin(), string_end};
 
 		if (recv_status < BUFFER_SIZE) // TODO: should respond with too large payload
 			break;
@@ -51,9 +51,9 @@ std::optional<std::string> Receiver::recv(socket_t receiving_socket) {
 
 
 	auto sock_data_elem = std::find_if(sock_sockData_from_server.begin(), sock_sockData_from_server.end(), [receiving_socket](const auto& el) { return el.first == receiving_socket; });
-	print_rcvd_msg(sock_data_elem, (*msg));
+	print_rcvd_msg(sock_data_elem, buffer.data());
 
-	return *msg;
+	return buffer;
 }
 
 void Receiver::print_rcvd_msg(const std::vector<std::pair<socket_t, sockaddr_in>>::iterator sock_data_elem, const std::string& msg) const {
@@ -68,7 +68,7 @@ void Receiver::saveSocketToClose(socket_t sock_to_close) {
 }
 
 void Receiver::closeSocket(socket_t sock_to_close) {
-	logger.logStatus("socket " + std::to_string(sock_to_close) + " close", CLOSE_STATUS);
+	LoggerLogStatusWithLineAndFile("socket " + std::to_string(sock_to_close) + " close", CLOSE_STATUS);
 	close(sock_to_close);
 
 	auto pollfd_elem = std::find_if(pollfd_list_from_server.begin(), pollfd_list_from_server.end(), [sock_to_close](const auto& el) { return el.fd == sock_to_close; });

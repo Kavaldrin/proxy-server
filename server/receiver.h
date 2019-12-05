@@ -21,7 +21,7 @@ public:
 		   		  sock_sockData_from_server(sock_sockData)
 		   		   {}
 
-	std::optional<std::string> recv(socket_t receiving_socket);
+	std::vector<char> recv(socket_t receiving_socket);
 
 	void closeSavedSockets();
 	void saveSocketToClose(socket_t sock_to_close);
@@ -33,5 +33,4 @@ private:
 	std::vector<pollfd>& pollfd_list_from_server;
 	std::vector<std::pair<socket_t, sockaddr_in>>& sock_sockData_from_server;
 
-	Logger logger;
 };

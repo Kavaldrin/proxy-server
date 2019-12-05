@@ -32,28 +32,27 @@ struct NoMethodException : public std::exception
 { const char* what() const throw() { return "NoMethodException"; } };
 
 std::optional<HttpRequest_t> ParserHttp::parse() {
-	http_request.insert({"MSG", msg});
+	http_request.insert({"MSG", msg.data()});
 	auto resp = parseStartLine();
 	parseHeader();
 	return http_request;
 }
 
-std::optional<std::string> ParserHttp::parseStartLine() {
+std::pair< std::optional<std::string>, std::optional<std::string> > ParserHttp::parseStartLine() {
 	end_of_previous_section = msg.find("\n");
 	std::string start_line_before_split{msg.begin(), msg.begin()+end_of_previous_section};
 	boost::split(start_line, start_line_before_split, boost::is_any_of(" "));
 
-	try {
-		parseMethod();
-		return parsePath();
+	auto method = parseMethod();
+	if(method.has_value())
+	{
+		return {method, parsePath()};
 	}
-	catch(std::exception& e) {
-		std::cout << e.what() << std::endl;
-		return std::nullopt;
-	}
+
+	return { {} , {} };
 }
 
-void ParserHttp::parseMethod() {
+std::optional<std::string> ParserHttp::parseMethod() {
 	std::string header;
 
 	constexpr unsigned NUMBER_OF_ALL_HTTP_METHODS = 9;
@@ -70,11 +69,9 @@ void ParserHttp::parseMethod() {
 	http_request.insert({"METHOD", header});
 
 	if (nb_of_checked_methods == NUMBER_OF_ALL_HTTP_METHODS) {
-		std::cout << "no http method\n";
-		throw NoMethodException{};
+		return {};
 	}
-	if (header != "GET" and header != "CONNECT")
-		throw BadMethodException{};
+	return header;
 }
 
 std::string ParserHttp::parsePath() {
@@ -91,7 +88,7 @@ void ParserHttp::parseHttpMethod() {
 void ParserHttp::parseHeader() {
 	try {
 		auto end_of_section = msg.find(END_OF_HEADERS);
-
+		//TO DO if end=_of_section > 8k odrzucamy
 
 		std::string header{msg.begin()+end_of_previous_section + NEW_LINE_FROM_PREVIOUS_SECTION,
 						   msg.begin()+end_of_section};
@@ -119,4 +116,10 @@ void ParserHttp::parseHeaders(std::vector<std::string>& headers) {
 
 void ParserHttp::parseBody() {
 
+}
+
+bool ParserHttp::isHTTPRequest() noexcept
+{
+	auto endOfFirstLine = msg.find("\n");
+	return (msg.find("HTTP", endOfFirstLine) != std::string::npos);
 }

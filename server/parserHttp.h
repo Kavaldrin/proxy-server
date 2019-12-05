@@ -4,17 +4,18 @@
 #include <vector>
 #include <optional>
 #include <map>
+#include <string_view>
 
 using HttpRequest_t = std::map<std::string, std::string>;
 
 class ParserHttp {
 public:
-	ParserHttp(const std::string& p_msg) : msg{p_msg} {};
+	ParserHttp(const std::string_view& p_msg) : msg{p_msg} {};
 	
 	std::optional<HttpRequest_t> parse();
 
-	std::optional<std::string> parseStartLine();
-	void parseMethod();
+	std::pair< std::optional<std::string>, std::optional<std::string> >  parseStartLine();
+	std::optional<std::string> parseMethod();
 	std::string parsePath();
 	// void parseQueryString();
 	void parseHttpMethod();
@@ -24,10 +25,12 @@ public:
 
 	void parseBody();
 
+	bool isHTTPRequest() noexcept;
+
 private:
 	HttpRequest_t http_request;
 
-	const std::string& msg;
+	const std::string_view& msg;
 	std::vector<std::string> start_line;
 	int end_of_previous_section;
 };
