@@ -2,48 +2,55 @@
 #include <sys/socket.h>
 #include "logger.h"
 #include <algorithm>
+#include <unistd.h>
 
 using namespace Proxy;
 
 
-void ProxyManager::handleStoredBuffers() noexcept
+std::pair<bool, bool> ProxyManager::handleStoredBuffers(int fd) noexcept
 {
-    std::vector< int > socketsToErase;
 
-    for(auto&[socket, buffer] : m_storage)
+    if(m_storage.find(fd) == m_storage.end())
     {
-        //licze na to ze nie przekroczy kernelowskiego sajzu na wyslanie pakietu
-        int status = ::send(socket, buffer.data(), buffer.size(), MSG_DONTWAIT);
-        if(status == -1)
+        return {false, false};
+    }
+
+
+    int status = ::send(fd, m_storage.at(fd).data(), m_storage.at(fd).size(), MSG_DONTWAIT);
+    LoggerLogStatusErrorWithLineAndFile("send: ", status);
+    if(status == -1)
+    {
+        if( ! (errno == EAGAIN || errno == EWOULDBLOCK) )
         {
-            if( ! (errno == EAGAIN || errno == EWOULDBLOCK) )
-            {
-                LoggerLogStatusErrorWithLineAndFile("unexpected sending error", status);
-                socketsToErase.push_back(socket);
-            }
-            else
-            {
-                LoggerLogStatusErrorWithLineAndFile("'might happend' sending error", status);
-            }
-        }
-        else if(status == buffer.size())
-        {
-            socketsToErase.push_back(socket);
+            LoggerLogStatusErrorWithLineAndFile("unexpected sending error", status);
+            m_storage.erase(m_storage.find(fd));
         }
         else
         {
-            LoggerLogStatusErrorWithLineAndFile("something very strangeXD", status);
+            LoggerLogStatusErrorWithLineAndFile("'might happend' sending error", status);
         }
-
+    }
+    else if(status == (int)m_storage[fd].size())
+    {
+        m_storage.erase(m_storage.find(fd));
+        return {true, false};
+    }
+    else
+    {
+        LoggerLogStatusErrorWithLineAndFile("something very strangeXD", status);
     }
 
-    std::for_each(socketsToErase.begin(), socketsToErase.end(),
-        [&](const auto& sock)
-        {
-            auto searchRes = m_storage.find(sock);
-            if(searchRes != m_storage.end()){ m_storage.erase(searchRes); }
-        });
-    
+
+    if(auto secondSoc = getSecondSocketIfEstablishedConnection(fd); ! secondSoc.has_value())
+    {
+        //because we know there wont be more data to this socket
+        ::close(fd);
+        return {true, true};
+    }
+
+
+    return {false, false};
+
 }
 
 bool ProxyManager::addEstablishedConnection(int source, int destination)
@@ -100,4 +107,10 @@ std::optional<int> ProxyManager::getSecondSocketIfEstablishedConnection(int sock
     }
     
     return {};
+}
+
+bool ProxyManager::isDestination(int socket)
+{
+    return (m_destToSource.find(socket) != m_destToSource.end());
+
 }

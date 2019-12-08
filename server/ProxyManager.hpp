@@ -21,12 +21,14 @@ public:
     bool addDataForDescriptor(int descriptor, T&& data) noexcept;
 
     void handleReceivedPacket(int descriptor) noexcept;
-    void handleStoredBuffers() noexcept;
+    std::pair<bool, bool> handleStoredBuffers(int fd) noexcept;
 
     bool addEstablishedConnection(int source, int destination);
     bool destroyEstablishedConnectionBySource(int source);
     bool destroyEstablishedConnectionByDestination(int destination);
     std::optional<int> getSecondSocketIfEstablishedConnection(int socket);
+
+    bool isDestination(int socket);
 
 
 private:
@@ -64,7 +66,7 @@ bool ProxyManager::addDataForDescriptor(int descriptor, T&& data) noexcept
 {
     static_assert(is_char_vector<T>::value, "your type is not char vector daun");
 
-    if(m_storage.find(fd) != m_storage.end()){ return false; }
+    if(m_storage.find(descriptor) != m_storage.end()){ return false; }
     m_storage.insert( {descriptor, std::forward<T>(data)} );
 
     return true;

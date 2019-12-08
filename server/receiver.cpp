@@ -14,32 +14,38 @@ constexpr int CLOSE_STATUS = 0;
 constexpr unsigned BUFFER_SIZE = 8196;
 
 
-std::vector<char> Receiver::recv(socket_t receiving_socket) {
+std::pair< std::vector<char>, bool> Receiver::recv(socket_t receiving_socket) {
 	
 	std::vector<char>  buffer{}; 
 	buffer.reserve(BUFFER_SIZE);
+	std::vector<char> msg{};
 
 	while(1) {
-		auto recv_status = ::recv(receiving_socket, buffer.data(), buffer.max_size(), MSG_DONTWAIT);
+		auto recv_status = ::recv(receiving_socket, buffer.data(), BUFFER_SIZE, MSG_DONTWAIT);
 
 		if (recv_status == ERROR_STATUS) {
 			LoggerLogStatusErrorWithLineAndFile("recv err", recv_status);
 
 			if(errno == EAGAIN or errno == EWOULDBLOCK) {
+				LoggerLogStatusErrorWithLineAndFile("EAGAIN or EWOULDBLOCK receving", recv_status);
 				break;
 			}
 			saveSocketToClose(receiving_socket);
-			return std::vector<char>{};
+			return { std::vector<char>{}, true };
 		}
-		if (recv_status == CLOSE_STATUS) {
+		else if (recv_status == CLOSE_STATUS) {
 			LoggerLogStatusErrorWithLineAndFile("recv", recv_status);
 
 			if(buffer.empty()) {
 				saveSocketToClose(receiving_socket);
-				return std::vector<char>{};
+				return { std::vector<char>{}, true };
 			}
-
+			std::cout << "close_status" << std::endl;
 			break;
+		}
+		else
+		{
+			std::copy_n(buffer.begin(), recv_status, std::back_inserter(msg));
 		}
 
 		//auto string_end = std::find(buffer.begin(), buffer.end(), '\0');
@@ -49,11 +55,10 @@ std::vector<char> Receiver::recv(socket_t receiving_socket) {
 			break;
 	}
 
-
 	auto sock_data_elem = std::find_if(sock_sockData_from_server.begin(), sock_sockData_from_server.end(), [receiving_socket](const auto& el) { return el.first == receiving_socket; });
-	print_rcvd_msg(sock_data_elem, buffer.data());
+	print_rcvd_msg(sock_data_elem, msg.data());
 
-	return buffer;
+	return { msg, false };
 }
 
 void Receiver::print_rcvd_msg(const std::vector<std::pair<socket_t, sockaddr_in>>::iterator sock_data_elem, const std::string& msg) const {

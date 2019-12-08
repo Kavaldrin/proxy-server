@@ -21,7 +21,7 @@ public:
 		   		  sock_sockData_from_server(sock_sockData)
 		   		   {}
 
-	std::vector<char> recv(socket_t receiving_socket);
+	std::pair < std::vector<char>, bool > recv(socket_t receiving_socket);
 
 	void closeSavedSockets();
 	void saveSocketToClose(socket_t sock_to_close);

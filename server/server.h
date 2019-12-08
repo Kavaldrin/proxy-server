@@ -28,13 +28,16 @@ private:
 	void startPoll();
 	void recvAndSend(int receiving_socket);
 	bool recv(int socket) noexcept;
-	void send(int receiving_socket, const std::optional<HttpRequest_t>& buffer);
-	int connect(std::string destination);
+	bool send(int socket) noexcept;
+	//void send(int receiving_socket, const std::optional<HttpRequest_t>& buffer);
+	std::pair<int, int> connect(std::string destination);
 
 	int sock_receiving;
 	std::vector<pollfd> pollfd_list;
 	std::vector<std::pair<int, sockaddr_in>> sock_sockData;
 	Proxy::ProxyManager m_proxyManager;
+	std::vector<int> m_socketsToRemove;
+	std::vector<pollfd> m_socketsToAdd;
 	int backlog = SOMAXCONN;
 	sockaddr_in address;
 	Logger logger;

@@ -76,7 +76,15 @@ std::optional<std::string> ParserHttp::parseMethod() {
 
 std::string ParserHttp::parsePath() {
 	http_request.insert({"PATH", std::string{start_line[1].begin()+1, start_line[1].end()}});
-	return std::string{start_line[1].begin()+1, start_line[1].end()};
+	auto result = std::string{start_line[1].begin(), start_line[1].end()};
+	std::remove_if(result.begin(), result.end(), 
+	[&](const auto& ch)
+		{
+			return ch == '\n' || ch == '\r';
+		}
+	);
+
+	return result;
 }
 
 // void ParserHttp::parseQueryString() {}
@@ -120,6 +128,29 @@ void ParserHttp::parseBody() {
 
 bool ParserHttp::isHTTPRequest() noexcept
 {
-	auto endOfFirstLine = msg.find("\n");
-	return (msg.find("HTTP", endOfFirstLine) != std::string::npos);
+	return (msg.find("HTTP") != std::string::npos);
+}
+
+std::optional< std::string > ParserHttp::getBaseAddress(std::string address) noexcept
+{
+
+	int startPos = 0;
+	for(auto& possibleBegining : {"http://", "https://"})
+	{
+		if(auto possibleNewPos = address.find(possibleBegining); possibleNewPos != std::string::npos)
+		{
+			startPos = possibleNewPos + strlen(possibleBegining);
+			break;
+		}
+	}
+
+	for(auto& possibleEnd : {".com", ".pl"})
+	{
+		auto pos = address.find(possibleEnd);
+		if(pos != std::string::npos)
+		{
+			return std::string(address, startPos, pos + strlen(possibleEnd) - startPos);
+		}
+	}
+	return {};
 }
