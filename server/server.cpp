@@ -77,7 +77,7 @@ void Server::listen() {
 
 void Server::startPoll() {
 	while(1) {
-		std::cout << " pool " << std::endl;
+		// std::cout << " pool " << std::endl;
 		int poll_result = poll(pollfd_list.data(), pollfd_list.size(), -1 /*no timeout */);
 
 		if (poll_result == ERROR_STATUS) {
@@ -206,7 +206,7 @@ void Server::recvAndSend(int receiving_socket) {
 bool Server::send(int socket) noexcept
 {
 	//std::this_thread::sleep_for(std::chrono::seconds(1));
-	std::cout << "send " << std::endl;
+	// std::cout << "send " << std::endl;
 	auto [shouldChangeSocketState, shouldRemoveSocket] =  m_proxyManager.handleStoredBuffers(socket);
 	if(shouldRemoveSocket)
 	{
@@ -240,8 +240,32 @@ bool Server::recv(int receiving_socket) noexcept {
 	if(auto pairSocket = m_proxyManager.getSecondSocketIfEstablishedConnection(receiving_socket);
 		pairSocket.has_value())
 	{
+		ParserHttp parser(message.data());
+		auto headers = parser.parse();
+		m_proxyManager.addEndBodyMethod(receiving_socket, *(m_proxyManager.getSecondSocketIfEstablishedConnection(receiving_socket)), *headers);
+
+		bool is_chunk_end = false;
+		if(message.size() >= 5) {
+			std::string possible_chunk_end{message.end()-5, message.end()};
+			const std::string chunk_end{"0\r\n\r\n"};
+			is_chunk_end = chunk_end == possible_chunk_end;
+
+		}
+
 		std::cout << receiving_socket << " : " << pairSocket.value() << std::endl;
 		m_proxyManager.addDataForDescriptor(pairSocket.value(), std::move(message));
+
+		if(is_chunk_end) {
+			std::cout << "chunk end\n";
+			receiver.saveSocketToClose(receiving_socket);
+			receiver.saveSocketToClose(*(m_proxyManager.getSecondSocketIfEstablishedConnection(receiving_socket)));
+
+			if(m_proxyManager.isDestination(receiving_socket))
+				m_proxyManager.destroyEstablishedConnectionByDestination(receiving_socket);
+			else
+				m_proxyManager.destroyEstablishedConnectionBySource(receiving_socket);
+		}
+
 		return true;
 	}
 
@@ -294,7 +318,6 @@ bool Server::recv(int receiving_socket) noexcept {
 				m_socketsToAdd.push_back( {new_sock, POLLOUT} );
 				m_proxyManager.addEstablishedConnection(receiving_socket, new_sock);
 				m_proxyManager.addDataForDescriptor(new_sock, std::move(message));
-				return true;
 			}
 		}
 	}

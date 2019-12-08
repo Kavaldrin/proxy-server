@@ -20,7 +20,7 @@ public:
 	// void parseQueryString();
 	void parseHttpMethod();
 
-	void parseHeaders(std::vector<std::string>& headers);
+	HttpRequest_t parseHeaders(std::vector<std::string>& headers);
 	void parseHeader();
 
 	void parseBody();
