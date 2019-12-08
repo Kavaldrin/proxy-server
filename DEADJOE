@@ -1,0 +1,23 @@
+
+*** These modified files were found in JOE when it aborted on Sat Dec  7 21:21:10 2019
+*** JOE was aborted because the terminal closed
+
+*** File '/home/stud2016/6bizon/studia/4rok/programowanie_sieciowe/1proj/proxy-server/.git/MERGE_MSG'
+Merge branch 'master' of https://github.com/kamilbizon/proxy-server into
+kamilqq# Please enter a commit message to explain why this merge is necessary,
+# especially if it merges an updated upstream into a topic branch.
+#
+# Lines starting with '#' will be ignored, and an empty message aborts
+# the commit.
+
+*** File '(Unnamed)'
+plik.c
+/home/stud2016/6bizon/studia/4rok/programowanie_sieciowe/proj/.git/COMMIT_EDITMSG
+/home/stud2016/6bizon/.gitconfig
+/home/stud2016/6bizon/studia/4rok/programowanie_sieciowe/1proj/proxy-server/.git/MERGE_MSG
+
+*** File '* Startup Log *'
+Processing '/etc/joe/editorrc'...
+Processing '/etc/joe/ftyperc'...
+Finished processing /etc/joe/ftyperc
+Finished processing /etc/joe/editorrc

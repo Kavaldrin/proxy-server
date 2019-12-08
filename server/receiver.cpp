@@ -25,13 +25,13 @@ std::optional<std::string> Receiver::recv(socket_t receiving_socket) {
 			logger.logStatusError("recv err", recv_status);
 
 			if(errno == EAGAIN or errno == EWOULDBLOCK) {
-				break;
+				return std::nullopt;
 			}
 			saveSocketToClose(receiving_socket);
 			return std::nullopt;
 		}
 		if (recv_status == CLOSE_STATUS) {
-			logger.logStatusError("recv", recv_status);
+			logger.logStatus("recv", recv_status);
 
 			if(not msg) {
 				saveSocketToClose(receiving_socket);
@@ -41,8 +41,7 @@ std::optional<std::string> Receiver::recv(socket_t receiving_socket) {
 			break;
 		}
 
-		auto string_end = std::find(buffer.begin(), buffer.end(), '\0');
-		std::string msg_part{buffer.begin(), string_end};
+		std::string msg_part{buffer.begin(), buffer.begin()+recv_status};
 		(*msg) += msg_part;
 
 		if (recv_status < BUFFER_SIZE) // TODO: should respond with too large payload
@@ -72,6 +71,7 @@ void Receiver::closeSocket(socket_t sock_to_close) {
 	close(sock_to_close);
 
 	auto pollfd_elem = std::find_if(pollfd_list_from_server.begin(), pollfd_list_from_server.end(), [sock_to_close](const auto& el) { return el.fd == sock_to_close; });
+	
 	pollfd_list_from_server.erase(pollfd_elem);
 
 	auto sock_data_elem = std::find_if(sock_sockData_from_server.begin(), sock_sockData_from_server.end(), [sock_to_close](const auto& el) { return el.first == sock_to_close; });
@@ -82,6 +82,7 @@ void Receiver::closeSavedSockets() {
 	sockets_to_close.unique();
 
 	for(auto sock : sockets_to_close) {
+		std::cout << sock << std::endl;
 		closeSocket(sock);
 	}
 

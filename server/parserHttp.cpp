@@ -110,6 +110,10 @@ void ParserHttp::parseHeaders(std::vector<std::string>& headers) {
 
 	for(auto header : headers){
 		boost::algorithm::split_regex(headerName_headerVal, header, boost::regex(": "));
+		headerName_headerVal[1].erase(std::remove_if(headerName_headerVal[1].begin(),
+													 headerName_headerVal[1].end(),
+													 ::isspace),
+									  headerName_headerVal[1].end());
 		http_request.insert({headerName_headerVal[0], headerName_headerVal[1]});
 
 		std::cout << "h " << headerName_headerVal[0] << ": " 

@@ -142,17 +142,12 @@ void Server::send(int receiving_socket, const std::optional<HttpRequest_t>& requ
 			if(host.size() == 1)
 				host.push_back("80");
 
-			std::cout << "koniec: " << host[0] << std::endl << host[1] << std::endl;
+			std::cout << "koniec: " << host[0] << " " << host[1] << std::endl;
 		}
 		else std::cout << "no host name\n";
 
-		addrinfo* info;
-		auto hostaddr = getaddrinfo(host[0].c_str(), host[1].c_str(), NULL, &info);
-		if(hostaddr != -1){
-			// std::cout << hostaddr->h_name << std::endl;
-			// std::cout << hostaddr->h_addr_list[0] << std::endl;
-		}
-		else {
+		auto hostaddr = gethostbyname(host[0].c_str());
+		if(hostaddr == NULL){
 			std::cout << "NULL\n";
 			std::cout << strerror(h_errno) << std::endl;
 		}
@@ -165,28 +160,32 @@ void Server::send(int receiving_socket, const std::optional<HttpRequest_t>& requ
 
 		int optval = 1;
 	    setsockopt(serv_sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
-		auto target = *(sockaddr_in*)(info->ai_addr);
+		// auto target = *(sockaddr_in*)(info->ai_addr);
 
+		sockaddr_in address;
+	    address.sin_family = AF_INET;
+		address.sin_port = htons(std::stoi(host[1]));
+		address.sin_addr.s_addr = *(long *)(hostaddr->h_addr_list[0]);
 		std::cout << "recv from"
-	    << " address = " << inet_ntoa(target.sin_addr)
-	    << " port = " << ntohs(target.sin_port)
-	    << " family = " << (target.sin_family)
+	    << " address = " << inet_ntoa(address.sin_addr)
+	    << " port = " << ntohs(address.sin_port)
+	    << " family = " << (address.sin_family)
 		<< std::endl;
-	 //    address.sin_family = AF_INET;
-		// address.sin_port = htons(std::stoi(host[1]));
-		// address.sin_addr.s_addr = *(long *)(hostaddr->h_addr_list[0]);
 
 		while(1){
-		    auto connect_status = ::connect(serv_sock, reinterpret_cast<const sockaddr*>(&(target)), sizeof(target));
+		    auto connect_status = ::connect(serv_sock, reinterpret_cast<const sockaddr*>(&(address)), sizeof(address));
 
 			if (connect_status == -1) {
 				logger.logStatusError("connect", connect_status);
-				// if(errno != EINPROGRESS)
+				if(errno != EINPROGRESS and errno != EALREADY)
 					return;
 			}
-			else break;
+			else {
+				pollfd_list.push_back(pollfd{serv_sock, POLLIN});
+				sock_sockData.push_back({serv_sock, address}); 
+				break;
+			}
 		}
-
 		auto msg = request->find("MSG")->second;
 
 		auto send_status = ::send(serv_sock, msg.c_str(), msg.length(), 0);
@@ -195,39 +194,54 @@ void Server::send(int receiving_socket, const std::optional<HttpRequest_t>& requ
 			logger.logStatusError("send", send_status);
 			return;
 		}
-
-		std::array<char, 8196> buffer;
-		int recv_status;
-		while(1){
-		recv_status = ::recv(serv_sock, buffer.data(), buffer.max_size(), 0);
-
-		if (recv_status == ERROR_STATUS) {
-			logger.logStatusError("recv", recv_status);
-			// return;
-		}
-		else break;	
-		}
-
-		std::string response{buffer.begin(), buffer.begin() + recv_status};
-
-		send_status = ::send(receiving_socket, response.c_str(), response.length(), 0);
-
 		logger.logStatus("send", send_status);
-		receiver.saveSocketToClose(receiving_socket);
+
+		while(1)
+		{
+			std::array<char, 8196> buffer;
+			int recv_status;
+			std::optional<std::string> response;
+			while(1) {
+				response = receiver.recv(serv_sock);
+				if(response != std::nullopt) {
+					std::cout << "is nullopt " << *response << std::endl;
+					break;
+				}
+			}
+
+			std::cout << *response <<std::endl;
+
+			send_status = ::send(receiving_socket, response->c_str(), response->length(), 0);
+			logger.logStatus("send in loop", send_status);
+
+			std::string possible_chunk_end{response->end()-5, response->end()};
+			std::cout << possible_chunk_end << std::endl;
+			const std::string chunk_end{"0\r\n\r\n"};
+			if(chunk_end == chunk_end) {
+				std::cout << "chunk end" << std::endl;
+				receiver.saveSocketToClose(receiving_socket);
+				receiver.saveSocketToClose(serv_sock);
+
+				return;
+			}
+		}
+		// receiver.saveSocketToClose(receiving_socket);
+		// ::close(serv_sock);
+
 		return;
 	}
 
-	auto response = HttpResponseBuilder(request->find("PATH")->second).build();
-	std::cout << "send\n" << response;
+	// auto response = HttpResponseBuilder(request->find("PATH")->second).build();
+	// std::cout << "send\n" << response;
 
-	auto send_status = ::send(receiving_socket, response.c_str(), response.length(), 0);
+	// auto send_status = ::send(receiving_socket, response.c_str(), response.length(), 0);
 
-	if (send_status == ERROR_STATUS) {
-		logger.logStatusError("send", send_status);
-		return;
-	}
+	// if (send_status == ERROR_STATUS) {
+	// 	logger.logStatusError("send", send_status);
+	// 	return;
+	// }
 
-	logger.logStatus("send", send_status);
-	receiver.saveSocketToClose(receiving_socket);
+	// logger.logStatus("send", send_status);
+	// receiver.saveSocketToClose(receiving_socket);
 }
 
