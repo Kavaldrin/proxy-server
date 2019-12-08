@@ -26,7 +26,7 @@ clean:
 cleanall:
 	rm *.o *.d $(EXE)
 valgrind:
-	valgrind --leak-check=full --show-leak-kinds=all ./$(EXE)
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./$(EXE)
 gdb:
 	gdb $(EXE)
 run: 

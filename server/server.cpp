@@ -77,7 +77,6 @@ void Server::listen() {
 
 void Server::startPoll() {
 	while(1) {
-		std::cout << " pool " << std::endl;
 		int poll_result = poll(pollfd_list.data(), pollfd_list.size(), -1 /*no timeout */);
 
 		if (poll_result == ERROR_STATUS) {
@@ -88,7 +87,7 @@ void Server::startPoll() {
 
 		for(auto& pollfd_element : pollfd_list) {
 
-
+			//std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			if (pollfd_element.revents & POLLIN) {
 
 				if(pollfd_element.fd == sock_receiving)
@@ -126,7 +125,7 @@ void Server::startPoll() {
 		}
 		m_socketsToAdd.clear();
 
-		receiver.closeSavedSockets();
+		//receiver.closeSavedSockets();
 	}
 }
 
@@ -138,7 +137,8 @@ void Server::accept() {
 
 	if(new_sock != ERROR_STATUS) {
 		std::cout << "accept status = " << new_sock;
-		pollfd_list.push_back(pollfd{new_sock, POLLIN});
+		//pollfd_list.push_back(pollfd{new_sock, POLLIN});
+		m_socketsToAdd.push_back( pollfd{new_sock, POLLIN} );
 		sock_sockData.push_back({new_sock, sender_addr_in});
 	}
 	else {
@@ -185,7 +185,7 @@ std::pair<int, int> Server::connect(std::string destination)
 		}
 		
 
-		LoggerLogStatusErrorWithLineAndFile("returning almost ocnnected socket", status);
+		//LoggerLogStatusErrorWithLineAndFile("returning almost ocnnected socket", status);
 		return {0 , serv_sock};
 		
 	}
@@ -206,7 +206,6 @@ void Server::recvAndSend(int receiving_socket) {
 bool Server::send(int socket) noexcept
 {
 	//std::this_thread::sleep_for(std::chrono::seconds(1));
-	std::cout << "send " << std::endl;
 	auto [shouldChangeSocketState, shouldRemoveSocket] =  m_proxyManager.handleStoredBuffers(socket);
 	if(shouldRemoveSocket)
 	{
@@ -227,32 +226,28 @@ bool Server::recv(int receiving_socket) noexcept {
 		return true;
 	}
 
-	std::cout << "After recev" << std::endl;
 
 	//if possible
 	if(m_proxyManager.isDestination(receiving_socket) && message.empty() && isSocketClosed)
 	{
+		std::cout << " destroying\n";
 		m_proxyManager.destroyEstablishedConnectionByDestination(receiving_socket);
-		return true;
+		return false;
 	}
 
 
 	if(auto pairSocket = m_proxyManager.getSecondSocketIfEstablishedConnection(receiving_socket);
 		pairSocket.has_value())
 	{
-		std::cout << receiving_socket << " : " << pairSocket.value() << std::endl;
 		m_proxyManager.addDataForDescriptor(pairSocket.value(), std::move(message));
 		return true;
 	}
 
-	std::cout << "parser here\n";
-
-	ParserHttp parser( message.data() );
+	ParserHttp parser{ std::string_view(message.data(), message.size()) };
 	if(parser.isHTTPRequest())
 	{
-		std::cout << "\n\njest http\n\n";
 		auto[method, destination] = parser.parseStartLine();
-		if(!method.has_value() || !method.has_value())
+		if(!method.has_value())
 		{
 			//header jest inwalida, to jakis moze bad request
 			return true;
@@ -261,7 +256,6 @@ bool Server::recv(int receiving_socket) noexcept {
 
 		if(parser.parseMethod() == std::string("CONNECT"))
 		{
-			std::cout << "\n\njest connect\n\n";
 			auto [status, new_sock] = connect(destination.value());
 			if(status == ERROR_STATUS)
 			{
@@ -278,11 +272,9 @@ bool Server::recv(int receiving_socket) noexcept {
 		}
 		else
 		{
-			std::cout << "\n\njest nieconnect\n\n";
 			auto baseAddress = parser.getBaseAddress(destination.value());
 			if(baseAddress.has_value())
 			{
-				std::cout << "base address: " << baseAddress.value() << " :"<< std::endl;
 				auto [status, new_sock] = connect(baseAddress.value());
 				if(status == ERROR_STATUS)
 				{
@@ -300,7 +292,6 @@ bool Server::recv(int receiving_socket) noexcept {
 	}
 	else
 	{
-		std::cout << "niehttp" << std::endl;
 		//not implemented
 		//m_proxyManager.addDataForDescriptor(receiving_socket, /*wygenerowana wiadomosc http*/);
 		return true;

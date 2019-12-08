@@ -17,7 +17,7 @@ constexpr unsigned BUFFER_SIZE = 8196;
 std::pair< std::vector<char>, bool> Receiver::recv(socket_t receiving_socket) {
 	
 	std::vector<char>  buffer{}; 
-	buffer.reserve(BUFFER_SIZE);
+	buffer.resize(BUFFER_SIZE);
 	std::vector<char> msg{};
 
 	while(1) {
@@ -56,9 +56,9 @@ std::pair< std::vector<char>, bool> Receiver::recv(socket_t receiving_socket) {
 	}
 
 	auto sock_data_elem = std::find_if(sock_sockData_from_server.begin(), sock_sockData_from_server.end(), [receiving_socket](const auto& el) { return el.first == receiving_socket; });
-	print_rcvd_msg(sock_data_elem, msg.data());
+	//print_rcvd_msg(sock_data_elem, msg.data());
 
-	return { msg, false };
+	return { std::move(msg), false };
 }
 
 void Receiver::print_rcvd_msg(const std::vector<std::pair<socket_t, sockaddr_in>>::iterator sock_data_elem, const std::string& msg) const {

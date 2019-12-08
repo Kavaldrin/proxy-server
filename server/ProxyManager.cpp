@@ -44,6 +44,7 @@ std::pair<bool, bool> ProxyManager::handleStoredBuffers(int fd) noexcept
     if(auto secondSoc = getSecondSocketIfEstablishedConnection(fd); ! secondSoc.has_value())
     {
         //because we know there wont be more data to this socket
+        std::cout << "Closing socket\n";
         ::close(fd);
         return {true, true};
     }
