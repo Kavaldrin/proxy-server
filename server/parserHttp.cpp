@@ -131,7 +131,7 @@ bool ParserHttp::isHTTPRequest() noexcept
 	return (msg.find("HTTP") != std::string::npos);
 }
 
-std::optional< std::string > ParserHttp::getBaseAddress(std::string address) noexcept
+std::pair < std::optional<std::string>, std::optional <std::string> > ParserHttp::getBaseAddress(std::string address) noexcept
 {
 
 	int startPos = 0;
@@ -144,13 +144,33 @@ std::optional< std::string > ParserHttp::getBaseAddress(std::string address) noe
 		}
 	}
 
-	for(auto& possibleEnd : {".com", ".pl"})
+	std::optional<std::string> port = {};
+
+	std::string_view tempView{ address.data() + startPos };
+	int portPos = tempView.find(":");
+	if(portPos != (int)std::string::npos)
 	{
-		auto pos = address.find(possibleEnd);
-		if(pos != std::string::npos)
+		std::string_view tempView2{ tempView.data() + portPos + 1};
+		for(auto& possibleEnd : {" ", "/"})
 		{
-			return std::string(address, startPos, pos + strlen(possibleEnd) - startPos);
+			if(auto endPos = tempView2.find(possibleEnd); endPos != std::string::npos)
+			{
+				port = std::string(tempView2.data(), endPos);
+			}
+		}
+		if(!port.has_value())
+		{
+			port = std::string(tempView.data() + portPos + 1);
 		}
 	}
-	return {};
+
+	for(auto& possibleEnd : {".com", ".pl"})
+	{
+		auto pos = tempView.find(possibleEnd);
+		if(pos != std::string::npos)
+		{
+			return {std::string(tempView.data(), 0, pos + strlen(possibleEnd)), port};
+		}
+	}
+	return {{}, {}};
 }

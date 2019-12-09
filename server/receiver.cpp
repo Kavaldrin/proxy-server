@@ -18,7 +18,7 @@ std::pair< std::vector<char>, bool> Receiver::recv(socket_t receiving_socket) {
 	
 	std::vector<char>  buffer{}; 
 	buffer.resize(BUFFER_SIZE);
-	std::vector<char> msg{};
+	std::vector<char> msg;
 
 	while(1) {
 		auto recv_status = ::recv(receiving_socket, buffer.data(), BUFFER_SIZE, MSG_DONTWAIT);
@@ -36,7 +36,7 @@ std::pair< std::vector<char>, bool> Receiver::recv(socket_t receiving_socket) {
 		else if (recv_status == CLOSE_STATUS) {
 			LoggerLogStatusErrorWithLineAndFile("recv", recv_status);
 
-			if(buffer.empty()) {
+			if(msg.empty()) {
 				saveSocketToClose(receiving_socket);
 				return { std::vector<char>{}, true };
 			}
@@ -55,7 +55,7 @@ std::pair< std::vector<char>, bool> Receiver::recv(socket_t receiving_socket) {
 			break;
 	}
 
-	auto sock_data_elem = std::find_if(sock_sockData_from_server.begin(), sock_sockData_from_server.end(), [receiving_socket](const auto& el) { return el.first == receiving_socket; });
+	//auto sock_data_elem = std::find_if(sock_sockData_from_server.begin(), sock_sockData_from_server.end(), [receiving_socket](const auto& el) { return el.first == receiving_socket; });
 	//print_rcvd_msg(sock_data_elem, msg.data());
 
 	return { std::move(msg), false };

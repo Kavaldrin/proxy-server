@@ -30,7 +30,7 @@ private:
 	bool recv(int socket) noexcept;
 	bool send(int socket) noexcept;
 	//void send(int receiving_socket, const std::optional<HttpRequest_t>& buffer);
-	std::pair<int, int> connect(std::string destination);
+	std::pair<int, int> connect(std::string destination, std::optional<std::string> = {});
 
 	int sock_receiving;
 	std::vector<pollfd> pollfd_list;

@@ -15,12 +15,10 @@
 #include "httpResponseBuilder.h"
 #include <thread>
 #include <chrono>
+#include <tuple>
 
 //TO DO
-//connect zaimplementowac
-//zmienic senda
-//naprawic bugi bo wiem ze beda
-
+//naprawic zamykanie socketow
 
 
 constexpr int ERROR_STATUS = -1;
@@ -77,6 +75,8 @@ void Server::listen() {
 
 void Server::startPoll() {
 	while(1) {
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		std::cout << " pool " << std::endl;
 		int poll_result = poll(pollfd_list.data(), pollfd_list.size(), -1 /*no timeout */);
 
 		if (poll_result == ERROR_STATUS) {
@@ -125,7 +125,6 @@ void Server::startPoll() {
 		}
 		m_socketsToAdd.clear();
 
-		//receiver.closeSavedSockets();
 	}
 }
 
@@ -151,7 +150,7 @@ void Server::accept() {
 		  	  << " protocol = " << sender_addr_in.sin_family << std::endl;
 }
 
-std::pair<int, int> Server::connect(std::string destination)
+std::pair<int, int> Server::connect(std::string destination, std::optional<std::string> port)
 {
 	std::cout << destination << std::endl;
 	auto hostaddr = gethostbyname(destination.c_str());
@@ -167,7 +166,16 @@ std::pair<int, int> Server::connect(std::string destination)
 
 		sockaddr_in dest;
 		dest.sin_family = AF_INET;
-		dest.sin_port = htons(80);
+
+		if(port.has_value())
+		{
+			dest.sin_port = htons(std::stoi(port.value()));
+		}
+		else
+		{
+			dest.sin_port = htons(80);
+		}
+
 		dest.sin_addr.s_addr = inet_addr(ipAddr);
 
 		int optval = 1;
@@ -220,6 +228,9 @@ bool Server::recv(int receiving_socket) noexcept {
 
 	auto [message, isSocketClosed] = receiver.recv(receiving_socket);	
 	
+	std::cout << message.size() << std::endl;
+
+
 	if(message.empty())
 	{
 		std::cout << "empty\n";
@@ -253,26 +264,34 @@ bool Server::recv(int receiving_socket) noexcept {
 			return true;
 		}
 
-
 		if(parser.parseMethod() == std::string("CONNECT"))
 		{
-			auto [status, new_sock] = connect(destination.value());
-			if(status == ERROR_STATUS)
+			auto [baseAddress, port] = parser.getBaseAddress(destination.value());
+			if(baseAddress.has_value())
 			{
-				LoggerLogStatusErrorWithLineAndFile("CONNECT connection failed\n", status);
+				auto [status, new_sock] = connect(baseAddress.value(), port);
+				if(status == ERROR_STATUS)
+				{
+					LoggerLogStatusErrorWithLineAndFile("CONNECT connection failed\n", status);
+					return true;
+				}
+
+				//pollfd_list.push_back(pollfd{new_sock, POLLOUT});
+				m_socketsToAdd.push_back( {new_sock, POLLOUT} );
+				m_proxyManager.addEstablishedConnection(receiving_socket, new_sock);
+				//m_proxyManager.addDataForDescriptor(new_sock, std::move(message));
+
+				std::string okResponse = { "HTTP/1.1 200 Connection Established\r\n\r\n" };
+				std::cout << okResponse << std::endl;
+				m_proxyManager.addDataForDescriptor(receiving_socket, std::vector<char>(okResponse.begin(), okResponse.end()));
 				return true;
 			}
-
-			//pollfd_list.push_back(pollfd{new_sock, POLLOUT});
-			m_socketsToAdd.push_back( {new_sock, POLLOUT} );
-			m_proxyManager.addEstablishedConnection(receiving_socket, new_sock);
-			m_proxyManager.addDataForDescriptor(new_sock, std::move(message));
-			return true;
 			
 		}
 		else
 		{
-			auto baseAddress = parser.getBaseAddress(destination.value());
+			auto [baseAddress, port] = parser.getBaseAddress(destination.value());
+			(void)port; //shut up gcc
 			if(baseAddress.has_value())
 			{
 				auto [status, new_sock] = connect(baseAddress.value());

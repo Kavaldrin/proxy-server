@@ -27,7 +27,7 @@ public:
 
 	bool isHTTPRequest() noexcept;
 
-	std::optional< std::string > getBaseAddress(std::string baseAddress) noexcept;
+	std::pair < std::optional<std::string>, std::optional <std::string> > getBaseAddress(std::string baseAddress) noexcept;
 
 private:
 	HttpRequest_t http_request;
