@@ -110,16 +110,18 @@ void ParserHttp::parseHeader() {
 	}
 }
 
-void ParserHttp::parseHeaders(std::vector<std::string>& headers) {
+HttpRequest_t ParserHttp::parseHeaders(std::vector<std::string>& headers) {
+	HttpRequest_t headers_map;
 	std::vector<std::string> headerName_headerVal;
 
 	for(auto header : headers){
 		boost::algorithm::split_regex(headerName_headerVal, header, boost::regex(": "));
-		http_request.insert({headerName_headerVal[0], headerName_headerVal[1]});
+		headers_map.insert({headerName_headerVal[0], headerName_headerVal[1]});
 
 		std::cout << "h " << headerName_headerVal[0] << ": " 
 		                  << headerName_headerVal[1] << std::endl;
 	}
+	return headers_map;
 }
 
 void ParserHttp::parseBody() {

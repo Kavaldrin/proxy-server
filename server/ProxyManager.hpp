@@ -1,6 +1,7 @@
 #ifndef __PROXY_MANAGER_HPP__
 #define __PROXY_MANAGER_HPP__
 
+#include "parserHttp.h"
 
 #include <unordered_map>
 #include <vector>
@@ -30,12 +31,15 @@ public:
 
     bool isDestination(int socket);
 
+    void addEndBodyMethod(int source, int destination, HttpRequest_t headers);
+
 
 private:
 
     //stac mnie na pamiec to nie lata 90
     std::unordered_map<int, int> m_sourceToDest;
     std::unordered_map<int, int> m_destToSource;
+    std::unordered_map<int, std::pair<std::string, std::string>> m_sockEndBody;
 
     std::unordered_map< int, std::vector<char> > m_storage;
 };

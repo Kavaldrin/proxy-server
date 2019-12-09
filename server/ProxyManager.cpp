@@ -59,6 +59,27 @@ bool ProxyManager::addEstablishedConnection(int source, int destination)
     return m_sourceToDest.insert( {source, destination} ).second && m_destToSource.insert( {destination, source} ).second;
 }
 
+void ProxyManager::addEndBodyMethod(int source, int destination, HttpRequest_t headers)
+{
+    std::pair<std::string, std::string> header;
+    auto header_it = headers.find("Content-Length");
+    if(header_it == headers.end()) {
+        header_it = headers.find("Transfer-Encoding");
+        if(header_it == headers.end())
+            header = std::make_pair(std::string("None"), std::string("None"));
+        else header = *header_it;
+    }
+    else header = *header_it;
+    std::cout << "end body method: " << header.first << " " << header.second << std::endl;
+
+    m_sockEndBody.insert( {source, header} ).second;
+    m_sockEndBody.insert( {destination, header} ).second;
+}
+
+std::optional<std::pair<std::string, std::string>> getEndBodyMethod(int socket) {
+
+}
+
 bool ProxyManager::destroyEstablishedConnectionBySource(int source)
 {
     auto searchResult = m_sourceToDest.find(source);
