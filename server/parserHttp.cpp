@@ -32,9 +32,11 @@ struct NoMethodException : public std::exception
 { const char* what() const throw() { return "NoMethodException"; } };
 
 std::optional<HttpRequest_t> ParserHttp::parse() {
-	http_request.insert({"MSG", msg.data()});
+	// http_request.insert({"MSG", msg.data()});
 	auto resp = parseStartLine();
 	parseHeader();
+	for(auto i : http_request)
+		std::cout << "h: " << i.first << ": " << i.second << std::endl;
 	return http_request;
 }
 
@@ -97,6 +99,7 @@ void ParserHttp::parseHeader() {
 	try {
 		auto end_of_section = msg.find(END_OF_HEADERS);
 		//TO DO if end=_of_section > 8k odrzucamy
+		http_request.insert({"Body-length", std::to_string(msg.length() - end_of_section)});
 
 		std::string header{msg.begin()+end_of_previous_section + NEW_LINE_FROM_PREVIOUS_SECTION,
 						   msg.begin()+end_of_section};
@@ -111,17 +114,18 @@ void ParserHttp::parseHeader() {
 }
 
 HttpRequest_t ParserHttp::parseHeaders(std::vector<std::string>& headers) {
-	HttpRequest_t headers_map;
 	std::vector<std::string> headerName_headerVal;
 
 	for(auto header : headers){
 		boost::algorithm::split_regex(headerName_headerVal, header, boost::regex(": "));
-		headers_map.insert({headerName_headerVal[0], headerName_headerVal[1]});
-
-		std::cout << "h " << headerName_headerVal[0] << ": " 
-		                  << headerName_headerVal[1] << std::endl;
+		headerName_headerVal[1].erase(std::remove_if(headerName_headerVal[1].begin(),
+													 headerName_headerVal[1].end(),
+													 ::isspace),
+									  headerName_headerVal[1].end());
+		http_request.insert({headerName_headerVal[0], headerName_headerVal[1]});
 	}
-	return headers_map;
+	
+	return http_request;
 }
 
 void ParserHttp::parseBody() {

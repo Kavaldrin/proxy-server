@@ -11,10 +11,15 @@
 namespace Proxy
 {
 
+enum class EndBodyMethod {
+    CHUNK,
+    CONTENT_LENGTH,
+    NONE
+};
 
 class ProxyManager
 {
-
+    struct EndBodyParameters;
 public:
 
     //a wiesz co nigdy nie uzywalem perfect forwardingu mysle ze czas gdy pali nam sie dupa przez mase projektow jest odpowiedni
@@ -32,16 +37,27 @@ public:
     bool isDestination(int socket);
 
     void addEndBodyMethod(int source, int destination, HttpRequest_t headers);
-
+    void createEndBodyParams(int source, int destination);
+    void deleteEndBodyParams(int source, int destination);
+    std::optional<std::_Rb_tree_iterator<std::pair<const std::pair<int, int>, EndBodyParameters>>> getEndBodyParams(int sock1, int sock2);
+    void incrementMessagesFromServer(int sock1, int sock2);
+    void incrementMessagesFromWebBrowser(int sock1, int sock2);
 
 private:
 
     //stac mnie na pamiec to nie lata 90
     std::unordered_map<int, int> m_sourceToDest;
     std::unordered_map<int, int> m_destToSource;
-    std::unordered_map<int, std::pair<std::string, std::string>> m_sockEndBody;
-
+    
     std::unordered_map< int, std::vector<char> > m_storage;
+
+    struct EndBodyParameters {
+        EndBodyMethod endBodyMethod;
+        std::optional<int> contentLength;
+        int numMessagesFromWebBrowser;
+        int numMessagesFromServer;
+    };
+    std::map<std::pair<int, int>, EndBodyParameters> m_sockEndBody;
 };
 
 
@@ -76,7 +92,11 @@ bool ProxyManager::addDataForDescriptor(int descriptor, T&& data) noexcept
     return true;
 }
 
-
+template<typename T>
+std::ostream& operator<<(typename std::enable_if<std::is_enum<T>::value, std::ostream>::type& stream, const T& e)
+{
+    return stream << static_cast<typename std::underlying_type<T>::type>(e);
+}
 
 
 }

@@ -30,7 +30,7 @@ public:
 	std::pair < std::optional<std::string>, std::optional <std::string> > getBaseAddress(std::string baseAddress) noexcept;
 
 private:
-	HttpRequest_t http_request;
+	HttpRequest_t http_request{};
 
 	const std::string_view& msg;
 	std::vector<std::string> start_line;

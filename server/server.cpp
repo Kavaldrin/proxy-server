@@ -75,12 +75,8 @@ void Server::listen() {
 
 void Server::startPoll() {
 	while(1) {
-<<<<<<< HEAD
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		std::cout << " pool " << std::endl;
-=======
-		// std::cout << " pool " << std::endl;
->>>>>>> milosz-kamil
 		int poll_result = poll(pollfd_list.data(), pollfd_list.size(), -1 /*no timeout */);
 
 		if (poll_result == ERROR_STATUS) {
@@ -129,6 +125,7 @@ void Server::startPoll() {
 		}
 		m_socketsToAdd.clear();
 
+		receiver.closeSavedSockets();
 	}
 }
 
@@ -218,10 +215,7 @@ void Server::recvAndSend(int receiving_socket) {
 bool Server::send(int socket) noexcept
 {
 	//std::this_thread::sleep_for(std::chrono::seconds(1));
-<<<<<<< HEAD
-=======
 	// std::cout << "send " << std::endl;
->>>>>>> milosz-kamil
 	auto [shouldChangeSocketState, shouldRemoveSocket] =  m_proxyManager.handleStoredBuffers(socket);
 	if(shouldRemoveSocket)
 	{
@@ -245,6 +239,7 @@ bool Server::recv(int receiving_socket) noexcept {
 		return true;
 	}
 
+	std::cout << "After recev" << std::endl;
 
 	//if possible
 	if(m_proxyManager.isDestination(receiving_socket) && message.empty() && isSocketClosed)
@@ -258,28 +253,57 @@ bool Server::recv(int receiving_socket) noexcept {
 	if(auto pairSocket = m_proxyManager.getSecondSocketIfEstablishedConnection(receiving_socket);
 		pairSocket.has_value())
 	{
-<<<<<<< HEAD
-=======
-		ParserHttp parser(message.data());
-		auto headers = parser.parse();
-		m_proxyManager.addEndBodyMethod(receiving_socket, *(m_proxyManager.getSecondSocketIfEstablishedConnection(receiving_socket)), *headers);
+		bool isMsgFromDest = m_proxyManager.isDestination(receiving_socket);
 
-		bool is_chunk_end = false;
-		if(message.size() >= 5) {
-			std::string possible_chunk_end{message.end()-5, message.end()};
-			const std::string chunk_end{"0\r\n\r\n"};
-			is_chunk_end = chunk_end == possible_chunk_end;
+		auto endBodyParams = m_proxyManager.getEndBodyParams(receiving_socket, *pairSocket);
 
+		std::cout << "already connected: " << receiving_socket << " " << *pairSocket;
+		std::cout << " ,msgs from brow: " << (*endBodyParams)->second.numMessagesFromWebBrowser;
+		std::cout << " ,msgs from serv: " << (*endBodyParams)->second.numMessagesFromServer << std::endl;
+		std::cout << "is rcvd msg from dest: " << isMsgFromDest << std::endl;
+
+
+		if(isMsgFromDest) {
+			std::cout << "has end body value? " << endBodyParams.has_value() << std::endl;
+			if(endBodyParams.has_value()) {
+
+				if((*endBodyParams)->second.numMessagesFromServer == 0){
+					ParserHttp parser{ std::string_view(message.data(), message.size()) };
+					auto headers = parser.parse();
+					
+					m_proxyManager.addEndBodyMethod(receiving_socket, *pairSocket, *headers);
+				}
+			}
+		}
+
+		bool should_close = false;
+		if(isMsgFromDest) {
+			std::cout << "end body" << (*endBodyParams)->second.endBodyMethod << std::endl;
+			if((*endBodyParams)->second.endBodyMethod == Proxy::EndBodyMethod::CHUNK) {
+				std::cout << "its chunked\n";
+				if(message.size() >= 5) {
+					std::string possible_chunk_end{message.end()-5, message.end()};
+					const std::string chunk_end{"0\r\n\r\n"};
+					should_close = chunk_end == possible_chunk_end;
+					if(should_close)
+						std::cout << "chunk end\n";
+				}
+			}
+			else if((*endBodyParams)->second.endBodyMethod == Proxy::EndBodyMethod::CONTENT_LENGTH) {
+				std::cout << "content-length close method\n";
+			}
+			else {
+				std::cout << "NONE close method\n";
+				should_close = true;
+			}
 		}
 
 		std::cout << receiving_socket << " : " << pairSocket.value() << std::endl;
->>>>>>> milosz-kamil
 		m_proxyManager.addDataForDescriptor(pairSocket.value(), std::move(message));
 
-		if(is_chunk_end) {
-			std::cout << "chunk end\n";
+		if(should_close) {
 			receiver.saveSocketToClose(receiving_socket);
-			receiver.saveSocketToClose(*(m_proxyManager.getSecondSocketIfEstablishedConnection(receiving_socket)));
+			receiver.saveSocketToClose(*pairSocket);
 
 			if(m_proxyManager.isDestination(receiving_socket))
 				m_proxyManager.destroyEstablishedConnectionByDestination(receiving_socket);
@@ -287,18 +311,25 @@ bool Server::recv(int receiving_socket) noexcept {
 				m_proxyManager.destroyEstablishedConnectionBySource(receiving_socket);
 		}
 
+		if(isMsgFromDest)
+			m_proxyManager.incrementMessagesFromServer(receiving_socket, *pairSocket);
+		else
+			m_proxyManager.incrementMessagesFromWebBrowser(receiving_socket, *pairSocket);
+
 		return true;
 	}
 
 	ParserHttp parser{ std::string_view(message.data(), message.size()) };
 	if(parser.isHTTPRequest())
 	{
+		std::cout << "\n\njest http\n\n";
 		auto[method, destination] = parser.parseStartLine();
 		if(!method.has_value())
 		{
 			//header jest inwalida, to jakis moze bad request
 			return true;
 		}
+
 
 		if(parser.parseMethod() == std::string("CONNECT"))
 		{
@@ -321,8 +352,7 @@ bool Server::recv(int receiving_socket) noexcept {
 				std::cout << okResponse << std::endl;
 				m_proxyManager.addDataForDescriptor(receiving_socket, std::vector<char>(okResponse.begin(), okResponse.end()));
 				return true;
-			}
-			
+			}		
 		}
 		else
 		{
@@ -330,6 +360,7 @@ bool Server::recv(int receiving_socket) noexcept {
 			(void)port; //shut up gcc
 			if(baseAddress.has_value())
 			{
+				std::cout << "base address: " << baseAddress.value() << " :"<< std::endl;
 				auto [status, new_sock] = connect(baseAddress.value());
 				if(status == ERROR_STATUS)
 				{
@@ -341,11 +372,16 @@ bool Server::recv(int receiving_socket) noexcept {
 				m_socketsToAdd.push_back( {new_sock, POLLOUT} );
 				m_proxyManager.addEstablishedConnection(receiving_socket, new_sock);
 				m_proxyManager.addDataForDescriptor(new_sock, std::move(message));
+				m_proxyManager.createEndBodyParams(receiving_socket, new_sock);
+				m_proxyManager.incrementMessagesFromWebBrowser(receiving_socket, new_sock);
+
+				return true;
 			}
 		}
 	}
 	else
 	{
+		std::cout << "niehttp" << std::endl;
 		//not implemented
 		//m_proxyManager.addDataForDescriptor(receiving_socket, /*wygenerowana wiadomosc http*/);
 		return true;

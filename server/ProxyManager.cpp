@@ -7,6 +7,8 @@
 using namespace Proxy;
 
 
+
+
 std::pair<bool, bool> ProxyManager::handleStoredBuffers(int fd) noexcept
 {
 
@@ -61,23 +63,64 @@ bool ProxyManager::addEstablishedConnection(int source, int destination)
 
 void ProxyManager::addEndBodyMethod(int source, int destination, HttpRequest_t headers)
 {
-    std::pair<std::string, std::string> header;
-    auto header_it = headers.find("Content-Length");
-    if(header_it == headers.end()) {
-        header_it = headers.find("Transfer-Encoding");
-        if(header_it == headers.end())
-            header = std::make_pair(std::string("None"), std::string("None"));
-        else header = *header_it;
-    }
-    else header = *header_it;
-    std::cout << "end body method: " << header.first << " " << header.second << std::endl;
+    EndBodyParameters endBodyParams;
 
-    m_sockEndBody.insert( {source, header} ).second;
-    m_sockEndBody.insert( {destination, header} ).second;
+    auto header_it = headers.find("Content-Length");
+    if(header_it != headers.end()) {
+        endBodyParams.endBodyMethod = EndBodyMethod::CONTENT_LENGTH;
+        endBodyParams.contentLength = std::stoi(header_it->second);
+    }
+    else if(header_it = headers.find("Transfer-Encoding");
+            header_it != headers.end() and header_it->second == "chunked"){
+        endBodyParams.endBodyMethod = EndBodyMethod::CHUNK;
+    }
+    else {
+        endBodyParams.endBodyMethod = EndBodyMethod::NONE;
+    }
+
+    std::cout << "adding end body method: " << endBodyParams.endBodyMethod << std::endl;
+
+    auto endBodyParams_it = m_sockEndBody.find({source, destination});
+    if(endBodyParams_it != m_sockEndBody.end())
+        endBodyParams_it->second = endBodyParams;
 }
 
-std::optional<std::pair<std::string, std::string>> getEndBodyMethod(int socket) {
+void ProxyManager::createEndBodyParams(int source, int destination) {
+    m_sockEndBody.insert({{source, destination}, {}});
+}
 
+void ProxyManager::deleteEndBodyParams(int sock1, int sock2) {
+    auto endBodyParams = getEndBodyParams(sock1, sock2);
+
+    if(endBodyParams.has_value())
+        m_sockEndBody.erase(*endBodyParams);
+}
+
+std::optional<std::_Rb_tree_iterator<std::pair<const std::pair<int, int>, Proxy::ProxyManager::EndBodyParameters>>> 
+        ProxyManager::getEndBodyParams(int sock1, int sock2) {
+    auto endBodyParams_it = m_sockEndBody.find({sock1, sock2});
+    if(endBodyParams_it != m_sockEndBody.end())
+        return std::make_optional(endBodyParams_it);
+    
+    endBodyParams_it = m_sockEndBody.find({sock2, sock1});
+    if(endBodyParams_it != m_sockEndBody.end())
+        return std::make_optional(endBodyParams_it);
+
+    return std::nullopt;
+}
+
+void ProxyManager::incrementMessagesFromWebBrowser(int sock1, int sock2) {
+    auto endBodyParams = getEndBodyParams(sock1, sock2);
+
+    if(endBodyParams.has_value())
+        (*endBodyParams)->second.numMessagesFromWebBrowser++;
+}
+
+void ProxyManager::incrementMessagesFromServer(int sock1, int sock2) {
+    auto endBodyParams = getEndBodyParams(sock1, sock2);
+
+    if(endBodyParams.has_value())
+        (*endBodyParams)->second.numMessagesFromServer++;
 }
 
 bool ProxyManager::destroyEstablishedConnectionBySource(int source)
@@ -86,14 +129,16 @@ bool ProxyManager::destroyEstablishedConnectionBySource(int source)
     if(searchResult != m_sourceToDest.end())
     {
         int dest = searchResult->second;
+        deleteEndBodyParams(source, dest);
+
         m_sourceToDest.erase(searchResult);
         auto searchResult = m_destToSource.find(dest);
         if(searchResult != m_destToSource.end())
         {
             m_destToSource.erase(searchResult);
+            std::cout << "destroy: " << source << " " << dest << std::endl;
             return true;
         }
-
     }
     return false;
 }
@@ -104,11 +149,14 @@ bool ProxyManager::destroyEstablishedConnectionByDestination(int destination)
     if(searchResult != m_destToSource.end())
     {
         int src = searchResult->second;
+        deleteEndBodyParams(src, destination);
+
         m_destToSource.erase(searchResult);
         auto searchResult = m_sourceToDest.find(src);
         if(searchResult != m_sourceToDest.end())
         {
             m_sourceToDest.erase(searchResult);
+            std::cout << "destroy: " << src << " " << destination << std::endl;
             return true;
         }
     }
