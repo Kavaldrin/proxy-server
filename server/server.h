@@ -31,6 +31,18 @@ private:
 	bool send(int socket) noexcept;
 	//void send(int receiving_socket, const std::optional<HttpRequest_t>& buffer);
 	std::pair<int, int> connect(std::string destination, std::optional<std::string> = {});
+	std::optional<int> addEndBodyMethodIfItsFirstMsgFromDest(
+			int receiving_socket,
+			int pairSocket,
+			bool isMsgFromDest,
+			std::optional<std::_Rb_tree_iterator<std::pair<const std::pair<int, int>, Proxy::ProxyManager::EndBodyParameters>>> endBodyParams,
+			const std::vector<char>& message);
+	void setShouldCloseSocketsBcsInMsgFromDestIsEndBody(
+			bool isMsgFromDest,
+			std::optional<int> bodySize,
+			std::optional<std::_Rb_tree_iterator<std::pair<const std::pair<int, int>, Proxy::ProxyManager::EndBodyParameters>>> endBodyParams,
+			const std::vector<char>& message);
+	void closeSocketsAndCleanStructures(int receiving_socket, int pairSocket);
 
 	int sock_receiving;
 	std::vector<pollfd> pollfd_list;

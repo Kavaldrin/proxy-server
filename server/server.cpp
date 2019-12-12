@@ -19,7 +19,7 @@
 
 //TO DO
 //naprawic zamykanie socketow
-
+constexpr bool ENCRYPTED = true;
 
 constexpr int ERROR_STATUS = -1;
 constexpr unsigned BUFFER_SIZE = 200;
@@ -216,7 +216,7 @@ bool Server::send(int socket) noexcept
 {
 	//std::this_thread::sleep_for(std::chrono::seconds(1));
 	// std::cout << "send " << std::endl;
-	auto [shouldChangeSocketState, shouldRemoveSocket] =  m_proxyManager.handleStoredBuffers(socket);
+	auto [shouldChangeSocketState, shouldRemoveSocket] =  m_proxyManager.handleStoredBuffers(socket, receiver);
 	if(shouldRemoveSocket)
 	{
 		m_socketsToRemove.push_back(socket);
@@ -257,59 +257,33 @@ bool Server::recv(int receiving_socket) noexcept {
 
 		auto endBodyParams = m_proxyManager.getEndBodyParams(receiving_socket, *pairSocket);
 
-		std::cout << "already connected: " << receiving_socket << " " << *pairSocket;
-		std::cout << " ,msgs from brow: " << (*endBodyParams)->second.numMessagesFromWebBrowser;
-		std::cout << " ,msgs from serv: " << (*endBodyParams)->second.numMessagesFromServer << std::endl;
-		std::cout << "is rcvd msg from dest: " << isMsgFromDest << std::endl;
-
-
-		if(isMsgFromDest) {
-			std::cout << "has end body value? " << endBodyParams.has_value() << std::endl;
-			if(endBodyParams.has_value()) {
-
-				if((*endBodyParams)->second.numMessagesFromServer == 0){
-					ParserHttp parser{ std::string_view(message.data(), message.size()) };
-					auto headers = parser.parse();
-					
-					m_proxyManager.addEndBodyMethod(receiving_socket, *pairSocket, *headers);
-				}
-			}
+		std::cout << "already connected: " << receiving_socket << " " << *pairSocket << std::endl;
+		LoggerLogStatusWithLineAndFile("is rcvd msg from dest", isMsgFromDest);
+		if(endBodyParams) {
+			LoggerLogStatusWithLineAndFile("is encrypted", (*endBodyParams)->second.isEncrypted);
+			LoggerLogStatusWithLineAndFile("msgs from brow", (*endBodyParams)->second.numMessagesFromWebBrowser);
+			LoggerLogStatusWithLineAndFile("msgs from serv", (*endBodyParams)->second.numMessagesFromServer);
 		}
 
-		bool should_close = false;
-		if(isMsgFromDest) {
-			std::cout << "end body" << (*endBodyParams)->second.endBodyMethod << std::endl;
-			if((*endBodyParams)->second.endBodyMethod == Proxy::EndBodyMethod::CHUNK) {
-				std::cout << "its chunked\n";
-				if(message.size() >= 5) {
-					std::string possible_chunk_end{message.end()-5, message.end()};
-					const std::string chunk_end{"0\r\n\r\n"};
-					should_close = chunk_end == possible_chunk_end;
-					if(should_close)
-						std::cout << "chunk end\n";
-				}
-			}
-			else if((*endBodyParams)->second.endBodyMethod == Proxy::EndBodyMethod::CONTENT_LENGTH) {
-				std::cout << "content-length close method\n";
-			}
-			else {
-				std::cout << "NONE close method\n";
-				should_close = true;
-			}
+		if(not (*endBodyParams)->second.isEncrypted) {
+			auto bodySize = addEndBodyMethodIfItsFirstMsgFromDest(receiving_socket,
+																  *pairSocket,
+																  isMsgFromDest,
+																  endBodyParams,
+																  message);
+
+			setShouldCloseSocketsBcsInMsgFromDestIsEndBody(isMsgFromDest,
+														   bodySize,
+														   endBodyParams,
+												  		   message);
 		}
 
 		std::cout << receiving_socket << " : " << pairSocket.value() << std::endl;
 		m_proxyManager.addDataForDescriptor(pairSocket.value(), std::move(message));
 
-		if(should_close) {
-			receiver.saveSocketToClose(receiving_socket);
-			receiver.saveSocketToClose(*pairSocket);
-
-			if(m_proxyManager.isDestination(receiving_socket))
-				m_proxyManager.destroyEstablishedConnectionByDestination(receiving_socket);
-			else
-				m_proxyManager.destroyEstablishedConnectionBySource(receiving_socket);
-		}
+		// if(not (*endBodyParams)->second.isEncrypted)
+		// 	if(should_close)
+		// 		closeSocketsAndCleanStructures(receiving_socket, *pairSocket);
 
 		if(isMsgFromDest)
 			m_proxyManager.incrementMessagesFromServer(receiving_socket, *pairSocket);
@@ -322,7 +296,7 @@ bool Server::recv(int receiving_socket) noexcept {
 	ParserHttp parser{ std::string_view(message.data(), message.size()) };
 	if(parser.isHTTPRequest())
 	{
-		std::cout << "\n\njest http\n\n";
+		LoggerLogStatusWithLineAndFile("jest http", 1);
 		auto[method, destination] = parser.parseStartLine();
 		if(!method.has_value())
 		{
@@ -333,6 +307,7 @@ bool Server::recv(int receiving_socket) noexcept {
 
 		if(parser.parseMethod() == std::string("CONNECT"))
 		{
+			LoggerLogStatusWithLineAndFile("CONNECT METHOD", 1);
 			auto [baseAddress, port] = parser.getBaseAddress(destination.value());
 			if(baseAddress.has_value())
 			{
@@ -351,11 +326,13 @@ bool Server::recv(int receiving_socket) noexcept {
 				std::string okResponse = { "HTTP/1.1 200 Connection Established\r\n\r\n" };
 				std::cout << okResponse << std::endl;
 				m_proxyManager.addDataForDescriptor(receiving_socket, std::vector<char>(okResponse.begin(), okResponse.end()));
+				m_proxyManager.createEndBodyParams(receiving_socket, new_sock, ENCRYPTED);
 				return true;
 			}		
 		}
 		else
 		{
+			LoggerLogStatusWithLineAndFile("NON CONNECT METHOD", 1);
 			auto [baseAddress, port] = parser.getBaseAddress(destination.value());
 			(void)port; //shut up gcc
 			if(baseAddress.has_value())
@@ -372,7 +349,7 @@ bool Server::recv(int receiving_socket) noexcept {
 				m_socketsToAdd.push_back( {new_sock, POLLOUT} );
 				m_proxyManager.addEstablishedConnection(receiving_socket, new_sock);
 				m_proxyManager.addDataForDescriptor(new_sock, std::move(message));
-				m_proxyManager.createEndBodyParams(receiving_socket, new_sock);
+				m_proxyManager.createEndBodyParams(receiving_socket, new_sock, not ENCRYPTED);
 				m_proxyManager.incrementMessagesFromWebBrowser(receiving_socket, new_sock);
 
 				return true;
@@ -390,9 +367,85 @@ bool Server::recv(int receiving_socket) noexcept {
 	return true;
 }
 
+std::optional<int> Server::addEndBodyMethodIfItsFirstMsgFromDest(
+		int receiving_socket,
+		int pairSocket,
+		bool isMsgFromDest,
+		std::optional<std::_Rb_tree_iterator<std::pair<const std::pair<int, int>, Proxy::ProxyManager::EndBodyParameters>>> endBodyParams,
+		const std::vector<char>& message) {
+	std::optional<int> bodySize;
 
+	if(isMsgFromDest) {
+		LoggerLogStatusWithLineAndFile("has end body value? ", endBodyParams.has_value());
 
+		if(endBodyParams.has_value()) {
+			std::cout << "end body params for pair sockets " 
+			<< (*endBodyParams)->first.first << " " << (*endBodyParams)->first.second << std::endl;
 
+			if((*endBodyParams)->second.numMessagesFromServer == 0){
+				ParserHttp parser{ std::string_view(message.data(), message.size()) };
+				auto headers = parser.parse();
+
+				auto body_it = headers->find("Body-length");
+				if(body_it != headers->end())
+					bodySize = std::stoi(body_it->second);
+
+				m_proxyManager.addEndBodyMethod(receiving_socket, pairSocket, *headers);
+			}
+		}
+	}
+
+	return bodySize;
+}
+
+void Server::setShouldCloseSocketsBcsInMsgFromDestIsEndBody(
+		bool isMsgFromDest,
+		std::optional<int> bodySize,
+		std::optional<std::_Rb_tree_iterator<std::pair<const std::pair<int, int>, Proxy::ProxyManager::EndBodyParameters>>> endBodyParams,
+		const std::vector<char>& message) {
+
+	// bool should_close = false;
+	if(isMsgFromDest) {
+		LoggerLogStatusWithLineAndFile("end body", static_cast<int>((*endBodyParams)->second.endBodyMethod));
+		if((*endBodyParams)->second.endBodyMethod == Proxy::EndBodyMethod::CHUNK) {
+			std::cout << "its chunked\n";
+			if(message.size() >= 5) {
+				std::string possible_chunk_end{message.end()-5, message.end()};
+				const std::string chunk_end{"0\r\n\r\n"};
+				(*endBodyParams)->second.shouldBeClosed = chunk_end == possible_chunk_end;
+				if((*endBodyParams)->second.shouldBeClosed)
+					std::cout << "chunk end should be closed\n";
+			}
+		}
+		else if((*endBodyParams)->second.endBodyMethod == Proxy::EndBodyMethod::CONTENT_LENGTH) {
+
+			if(not bodySize)
+				bodySize = message.size();
+			*(*endBodyParams)->second.contentLength -= *bodySize;
+
+			if(*(*endBodyParams)->second.contentLength <= 0) {
+				std::cout << "content-length should be closed\n";
+				(*endBodyParams)->second.shouldBeClosed = true;
+			}
+		}
+		else {
+			std::cout << "NONE close method should be closed\n";
+			(*endBodyParams)->second.shouldBeClosed = true;
+		}
+	}
+
+	// return should_close;
+}
+
+void Server::closeSocketsAndCleanStructures(int receiving_socket, int pairSocket) {
+	receiver.saveSocketToClose(receiving_socket);
+	receiver.saveSocketToClose(pairSocket);
+
+	if(m_proxyManager.isDestination(receiving_socket))
+		m_proxyManager.destroyEstablishedConnectionByDestination(receiving_socket);
+	else
+		m_proxyManager.destroyEstablishedConnectionBySource(receiving_socket);
+}
 
 
 

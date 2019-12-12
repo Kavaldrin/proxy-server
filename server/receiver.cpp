@@ -77,10 +77,12 @@ void Receiver::closeSocket(socket_t sock_to_close) {
 	close(sock_to_close);
 
 	auto pollfd_elem = std::find_if(pollfd_list_from_server.begin(), pollfd_list_from_server.end(), [sock_to_close](const auto& el) { return el.fd == sock_to_close; });
-	pollfd_list_from_server.erase(pollfd_elem);
+	if(pollfd_elem != pollfd_list_from_server.end())
+		pollfd_list_from_server.erase(pollfd_elem);
 
 	auto sock_data_elem = std::find_if(sock_sockData_from_server.begin(), sock_sockData_from_server.end(), [sock_to_close](const auto& el) { return el.first == sock_to_close; });
-	sock_sockData_from_server.erase(sock_data_elem);
+	if(sock_data_elem != sock_sockData_from_server.end())
+		sock_sockData_from_server.erase(sock_data_elem);
 }
 
 void Receiver::closeSavedSockets() {

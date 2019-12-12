@@ -1,25 +1,26 @@
 #include "ProxyManager.hpp"
-#include <sys/socket.h>
 #include "logger.h"
+#include <sys/socket.h>
 #include <algorithm>
 #include <unistd.h>
 
 using namespace Proxy;
 
 
-
-
-std::pair<bool, bool> ProxyManager::handleStoredBuffers(int fd) noexcept
+std::pair<bool, bool> ProxyManager::handleStoredBuffers(int fd, Receiver& receiver) noexcept
 {
 
     if(m_storage.find(fd) == m_storage.end())
     {
-        return {false, false};
+        return {not SHOULD_CHANGE_SOCKET_STATE, not SHOULD_REMOVE_SOCKET};
     }
 
 
     int status = ::send(fd, m_storage.at(fd).data(), m_storage.at(fd).size(), MSG_DONTWAIT);
     LoggerLogStatusErrorWithLineAndFile("send: ", status);
+
+    auto secondSoc = getSecondSocketIfEstablishedConnection(fd);
+    auto endParams = getEndBodyParams(fd, *secondSoc);
     if(status == -1)
     {
         if( ! (errno == EAGAIN || errno == EWOULDBLOCK) )
@@ -32,10 +33,22 @@ std::pair<bool, bool> ProxyManager::handleStoredBuffers(int fd) noexcept
             LoggerLogStatusErrorWithLineAndFile("'might happend' sending error", status);
         }
     }
-    else if(status == (int)m_storage[fd].size())
+    else if(status == (int)m_storage[fd].size() and endParams and not (*endParams)->second.shouldBeClosed)
     {
         m_storage.erase(m_storage.find(fd));
-        return {true, false};
+        return {SHOULD_CHANGE_SOCKET_STATE, not SHOULD_REMOVE_SOCKET};
+    }
+    else if(status == (int)m_storage[fd].size() and endParams and (*endParams)->second.shouldBeClosed)
+    {
+        receiver.saveSocketToClose(fd);
+        receiver.saveSocketToClose(*secondSoc);
+
+        if(isDestination(fd))
+            destroyEstablishedConnectionByDestination(fd);
+        else
+            destroyEstablishedConnectionBySource(fd);
+
+        return {SHOULD_CHANGE_SOCKET_STATE, SHOULD_REMOVE_SOCKET};
     }
     else
     {
@@ -47,12 +60,19 @@ std::pair<bool, bool> ProxyManager::handleStoredBuffers(int fd) noexcept
     {
         //because we know there wont be more data to this socket
         std::cout << "Closing socket\n";
-        ::close(fd);
-        return {true, true};
+        // ::close(fd);
+        receiver.saveSocketToClose(fd);
+
+        if(isDestination(fd))
+            destroyEstablishedConnectionByDestination(fd);
+        else
+            destroyEstablishedConnectionBySource(fd);
+
+        return {SHOULD_CHANGE_SOCKET_STATE, SHOULD_REMOVE_SOCKET};
     }
 
 
-    return {false, false};
+    return {not SHOULD_CHANGE_SOCKET_STATE, not SHOULD_REMOVE_SOCKET};
 
 }
 
@@ -80,13 +100,18 @@ void ProxyManager::addEndBodyMethod(int source, int destination, HttpRequest_t h
 
     std::cout << "adding end body method: " << endBodyParams.endBodyMethod << std::endl;
 
-    auto endBodyParams_it = m_sockEndBody.find({source, destination});
-    if(endBodyParams_it != m_sockEndBody.end())
-        endBodyParams_it->second = endBodyParams;
+    auto endBodyParams_it = getEndBodyParams(source, destination);
+    if(endBodyParams_it) {
+        (*endBodyParams_it)->second = endBodyParams;
+        std::cout << "sockets end body params:\n";
+        for(const auto& it : m_sockEndBody)
+            std::cout << it.first.first << " " << it.first.second 
+            << " method " << it.second.endBodyMethod << "\n";
+    }
 }
 
-void ProxyManager::createEndBodyParams(int source, int destination) {
-    m_sockEndBody.insert({{source, destination}, {}});
+void ProxyManager::createEndBodyParams(int source, int destination, bool isEncryted) {
+    m_sockEndBody.insert({{source, destination}, {EndBodyMethod::NONE, std::nullopt, 0, 0, false, false, isEncryted}});
 }
 
 void ProxyManager::deleteEndBodyParams(int sock1, int sock2) {

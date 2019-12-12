@@ -21,14 +21,14 @@ struct Logger {
 	static void _logStatusErrorWithLineAndFile(const char* file, int line, const std::string& operation_name, int status)
 	{
 		std::cerr << "LOGGER: ";
-		std::cerr << file << " " << line << std::endl;
+		std::cerr << file << " " << line << ":\t";
 		logStatusError(operation_name, status);
 	}
 
 	static void _logStatusWithLineAndFile(const char* file, int line, const std::string& operation_name, int status)
 	{
 		std::cerr << "LOGGER: ";
-		std::cerr << file << " " << line << std::endl;
+		std::cerr << file << " " << line << ":\t";
 		logStatus(operation_name, status);
 	}
 

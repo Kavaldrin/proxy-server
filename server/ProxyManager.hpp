@@ -2,6 +2,7 @@
 #define __PROXY_MANAGER_HPP__
 
 #include "parserHttp.h"
+#include "receiver.h"
 
 #include <unordered_map>
 #include <vector>
@@ -17,17 +18,29 @@ enum class EndBodyMethod {
     NONE
 };
 
+constexpr bool SHOULD_CHANGE_SOCKET_STATE = true;
+constexpr bool SHOULD_REMOVE_SOCKET = true;
+
 class ProxyManager
 {
-    struct EndBodyParameters;
 public:
+    // struct EndBodyParameters;
+    struct EndBodyParameters {
+        EndBodyMethod endBodyMethod;
+        std::optional<int> contentLength;
+        int numMessagesFromWebBrowser;
+        int numMessagesFromServer;
+        bool shouldBeClosed;
+        bool hasLastMsgBeenSent;
+        bool isEncrypted;
+    };
 
     //a wiesz co nigdy nie uzywalem perfect forwardingu mysle ze czas gdy pali nam sie dupa przez mase projektow jest odpowiedni
     template <typename T>
     bool addDataForDescriptor(int descriptor, T&& data) noexcept;
 
     void handleReceivedPacket(int descriptor) noexcept;
-    std::pair<bool, bool> handleStoredBuffers(int fd) noexcept;
+    std::pair<bool, bool> handleStoredBuffers(int fd, Receiver& receiver) noexcept;
 
     bool addEstablishedConnection(int source, int destination);
     bool destroyEstablishedConnectionBySource(int source);
@@ -37,7 +50,7 @@ public:
     bool isDestination(int socket);
 
     void addEndBodyMethod(int source, int destination, HttpRequest_t headers);
-    void createEndBodyParams(int source, int destination);
+    void createEndBodyParams(int source, int destination, bool isEncrypted);
     void deleteEndBodyParams(int source, int destination);
     std::optional<std::_Rb_tree_iterator<std::pair<const std::pair<int, int>, EndBodyParameters>>> getEndBodyParams(int sock1, int sock2);
     void incrementMessagesFromServer(int sock1, int sock2);
@@ -51,12 +64,6 @@ private:
     
     std::unordered_map< int, std::vector<char> > m_storage;
 
-    struct EndBodyParameters {
-        EndBodyMethod endBodyMethod;
-        std::optional<int> contentLength;
-        int numMessagesFromWebBrowser;
-        int numMessagesFromServer;
-    };
     std::map<std::pair<int, int>, EndBodyParameters> m_sockEndBody;
 };
 
