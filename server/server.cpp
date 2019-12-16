@@ -281,9 +281,6 @@ bool Server::recv(int receiving_socket) noexcept {
 		std::cout << receiving_socket << " : " << pairSocket.value() << std::endl;
 		m_proxyManager.addDataForDescriptor(pairSocket.value(), std::move(message));
 
-		// if(not (*endBodyParams)->second.isEncrypted)
-		// 	if(should_close)
-		// 		closeSocketsAndCleanStructures(receiving_socket, *pairSocket);
 
 		if(isMsgFromDest)
 			m_proxyManager.incrementMessagesFromServer(receiving_socket, *pairSocket);
@@ -300,7 +297,6 @@ bool Server::recv(int receiving_socket) noexcept {
 		auto[method, destination] = parser.parseStartLine();
 		if(!method.has_value())
 		{
-			//header jest inwalida, to jakis moze bad request
 			return true;
 		}
 
@@ -334,7 +330,7 @@ bool Server::recv(int receiving_socket) noexcept {
 		{
 			LoggerLogStatusWithLineAndFile("NON CONNECT METHOD", 1);
 			auto [baseAddress, port] = parser.getBaseAddress(destination.value());
-			(void)port; //shut up gcc
+			(void)port; 
 			if(baseAddress.has_value())
 			{
 				std::cout << "base address: " << baseAddress.value() << " :"<< std::endl;
@@ -449,113 +445,3 @@ void Server::closeSocketsAndCleanStructures(int receiving_socket, int pairSocket
 
 
 
-
-
-
-// void Server::send(int receiving_socket, const std::optional<HttpRequest_t>& request) {
-
-// 	if(request->find("METHOD")->second == "GET") {
-// 		std::vector<std::string> host;
-
-// 		auto host_name = request->find("Host");
-// 		std::cout << host_name->second << std::endl;
-// 		if(host_name != request->end()){
-// 			boost::split(host, host_name->second, boost::is_any_of(":"));
-// 			std::cout << host[0]<< std::endl;
-// 			if(host.size() == 1)
-// 				host.push_back("80");
-
-// 			std::cout << "konec: " << host[0] << " " << host[1] << std::endl;
-// 		}
-// 		else std::cout << "no host name\n";
-
-// 		host[0].erase(std::remove_if(host[0].begin(), host[0].end(), [&](const auto& ch){ return (ch == '\n' || ch == '\r'); } ));
-
-// 		host[0] += '\0';
-// 		std::cout << "A" << host[0].c_str() << "A" << std::endl;
-// 		auto hostaddr = gethostbyname(host[0].c_str());
-// 		//auto hostaddr = gethostbyname("www.fis.agh.edu.pl");
-// 		if(hostaddr != NULL){
-// 			// std::cout << hostaddr->h_name << std::endl;
-// 			// std::cout << hostaddr->h_addr_list[0] << std::endl;
-
-// 			struct in_addr **addr_list;
-// 			addr_list = (struct in_addr **)hostaddr->h_addr_list;
-// 			char* ipAddr = inet_ntoa(*addr_list[0]);
-// 			std::cout << ipAddr << std::endl;
-// 		}
-// 		else {
-// 			std::cout << "NULL\n";
-// 			std::cout << strerror(h_errno) << std::endl;
-// 		}
-
-// 		
-// 		if (serv_sock == ERROR_STATUS) {
-// 			logger.logStatusError("socket", serv_sock);
-// 			return;
-// 		}
-
-// 		int optval = 1;
-//		auto serv_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
-// 	    setsockopt(serv_sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
-
-// 	    sockaddr_in address;
-// 	    address.sin_family = AF_INET;
-// 		address.sin_port = htons(std::stoi(host[1]));
-// 		address.sin_addr.s_addr = *(long *)(hostaddr->h_addr_list[0]);
-
-// 		// while(1){
-// 		//     auto connect_status = ::connect(serv_sock, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
-
-// 		// 	if (connect_status == -1) {
-// 		// 		logger.logStatusError("connect", connect_status);
-// 		// 		// if(errno != EINPROGRESS)
-// 		// 			// return;
-// 		// 	}
-// 		// 	else break;
-// 		// }
-// 		std::this_thread::sleep_for(std::chrono::seconds(2));
-
-// 		auto msg = request->find("MSG")->second;
-
-// 		auto send_status = ::send(serv_sock, msg.c_str(), msg.length(), 0);
-
-// 		if (send_status == -1) {
-// 			logger.logStatusError("send", send_status);
-// 			return;
-// 		}
-
-// 		std::array<char, 8196> buffer;
-// 		int recv_status;
-// 		while(1){
-// 		recv_status = ::recv(serv_sock, buffer.data(), buffer.max_size(), 0);
-
-// 		if (recv_status == ERROR_STATUS) {
-// 			logger.logStatusError("recv", recv_status);
-// 			// return;
-// 		}
-// 		else break;	
-// 		}
-
-// 		std::string response{buffer.begin(), buffer.begin() + recv_status};
-
-// 		send_status = ::send(receiving_socket, response.c_str(), response.length(), 0);
-
-// 		logger.logStatus("send", send_status);
-// 		receiver.saveSocketToClose(receiving_socket);
-// 		return;
-// 	}
-
-// 	auto response = HttpResponseBuilder(request->find("PATH")->second).build();
-// 	std::cout << "send\n" << response;
-
-// 	auto send_status = ::send(receiving_socket, response.c_str(), response.length(), 0);
-
-// 	if (send_status == ERROR_STATUS) {
-// 		logger.logStatusError("send", send_status);
-// 		return;
-// 	}
-
-// 	logger.logStatus("send", send_status);
-// 	receiver.saveSocketToClose(receiving_socket);
-// }

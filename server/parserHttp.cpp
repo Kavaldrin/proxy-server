@@ -89,7 +89,6 @@ std::string ParserHttp::parsePath() {
 	return result;
 }
 
-// void ParserHttp::parseQueryString() {}
 
 void ParserHttp::parseHttpMethod() {
 

@@ -17,7 +17,6 @@ public:
 	std::pair< std::optional<std::string>, std::optional<std::string> >  parseStartLine();
 	std::optional<std::string> parseMethod();
 	std::string parsePath();
-	// void parseQueryString();
 	void parseHttpMethod();
 
 	HttpRequest_t parseHeaders(std::vector<std::string>& headers);

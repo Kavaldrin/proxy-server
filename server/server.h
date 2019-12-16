@@ -29,7 +29,6 @@ private:
 	void recvAndSend(int receiving_socket);
 	bool recv(int socket) noexcept;
 	bool send(int socket) noexcept;
-	//void send(int receiving_socket, const std::optional<HttpRequest_t>& buffer);
 	std::pair<int, int> connect(std::string destination, std::optional<std::string> = {});
 	std::optional<int> addEndBodyMethodIfItsFirstMsgFromDest(
 			int receiving_socket,

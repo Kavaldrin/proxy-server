@@ -24,7 +24,6 @@ constexpr bool SHOULD_REMOVE_SOCKET = true;
 class ProxyManager
 {
 public:
-    // struct EndBodyParameters;
     struct EndBodyParameters {
         EndBodyMethod endBodyMethod;
         std::optional<int> contentLength;
@@ -35,7 +34,6 @@ public:
         bool isEncrypted;
     };
 
-    //a wiesz co nigdy nie uzywalem perfect forwardingu mysle ze czas gdy pali nam sie dupa przez mase projektow jest odpowiedni
     template <typename T>
     bool addDataForDescriptor(int descriptor, T&& data) noexcept;
 
@@ -58,7 +56,6 @@ public:
 
 private:
 
-    //stac mnie na pamiec to nie lata 90
     std::unordered_map<int, int> m_sourceToDest;
     std::unordered_map<int, int> m_destToSource;
     
@@ -69,8 +66,6 @@ private:
 
 
 
-//lubie strzelac z armaty do wrobla
-//zeby grzesiowi bylo glupio ze takim panom inzynierom jak milosz f i kamil b kazal pisac taki gowno-programik
 template <typename T, typename _ = void>
 struct is_char_vector : std::false_type {};
 
