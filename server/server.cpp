@@ -278,6 +278,7 @@ bool Server::recv(int receiving_socket) noexcept {
 		return true;
 	}
 
+	std::cout << std::string_view(message.data() std::endl;
 	ParserHttp parser{ std::string_view(message.data(), message.size()) };
 	if(parser.isHTTPRequest())
 	{
