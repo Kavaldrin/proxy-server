@@ -207,15 +207,10 @@ std::pair<int, int> Server::connect(std::string destination, std::optional<std::
 }
 
 void Server::recvAndSend(int receiving_socket) {
-	
-
-	//recv(receiving_socket);
 }
 
 bool Server::send(int socket) noexcept
 {
-	//std::this_thread::sleep_for(std::chrono::seconds(1));
-	// std::cout << "send " << std::endl;
 	auto [shouldChangeSocketState, shouldRemoveSocket] =  m_proxyManager.handleStoredBuffers(socket, receiver);
 	if(shouldRemoveSocket)
 	{
@@ -225,13 +220,9 @@ bool Server::send(int socket) noexcept
 }
 
 bool Server::recv(int receiving_socket) noexcept {
-	
-			//std::this_thread::sleep_for(std::chrono::seconds(1));
-
 	auto [message, isSocketClosed] = receiver.recv(receiving_socket);	
 	
 	std::cout << message.size() << std::endl;
-
 
 	if(message.empty())
 	{
@@ -241,14 +232,12 @@ bool Server::recv(int receiving_socket) noexcept {
 
 	std::cout << "After recev" << std::endl;
 
-	//if possible
 	if(m_proxyManager.isDestination(receiving_socket) && message.empty() && isSocketClosed)
 	{
 		std::cout << " destroying\n";
 		m_proxyManager.destroyEstablishedConnectionByDestination(receiving_socket);
 		return false;
 	}
-
 
 	if(auto pairSocket = m_proxyManager.getSecondSocketIfEstablishedConnection(receiving_socket);
 		pairSocket.has_value())
@@ -281,7 +270,6 @@ bool Server::recv(int receiving_socket) noexcept {
 		std::cout << receiving_socket << " : " << pairSocket.value() << std::endl;
 		m_proxyManager.addDataForDescriptor(pairSocket.value(), std::move(message));
 
-
 		if(isMsgFromDest)
 			m_proxyManager.incrementMessagesFromServer(receiving_socket, *pairSocket);
 		else
@@ -300,7 +288,6 @@ bool Server::recv(int receiving_socket) noexcept {
 			return true;
 		}
 
-
 		if(parser.parseMethod() == std::string("CONNECT"))
 		{
 			LoggerLogStatusWithLineAndFile("CONNECT METHOD", 1);
@@ -314,10 +301,8 @@ bool Server::recv(int receiving_socket) noexcept {
 					return true;
 				}
 
-				//pollfd_list.push_back(pollfd{new_sock, POLLOUT});
 				m_socketsToAdd.push_back( {new_sock, POLLOUT} );
 				m_proxyManager.addEstablishedConnection(receiving_socket, new_sock);
-				//m_proxyManager.addDataForDescriptor(new_sock, std::move(message));
 
 				std::string okResponse = { "HTTP/1.1 200 Connection Established\r\n\r\n" };
 				std::cout << okResponse << std::endl;
@@ -341,7 +326,6 @@ bool Server::recv(int receiving_socket) noexcept {
 					return true;
 				}
 
-				//pollfd_list.push_back(pollfd{new_sock, POLLOUT});
 				m_socketsToAdd.push_back( {new_sock, POLLOUT} );
 				m_proxyManager.addEstablishedConnection(receiving_socket, new_sock);
 				m_proxyManager.addDataForDescriptor(new_sock, std::move(message));
@@ -352,11 +336,10 @@ bool Server::recv(int receiving_socket) noexcept {
 			}
 		}
 	}
-	else
+	else // not http
 	{
-		std::cout << "niehttp" << std::endl;
-		//not implemented
-		//m_proxyManager.addDataForDescriptor(receiving_socket, /*wygenerowana wiadomosc http*/);
+		LoggerLogStatusWithLineAndFile("NON HTTP", 0);
+
 		return true;
 	}
 	
@@ -400,7 +383,6 @@ void Server::setShouldCloseSocketsBcsInMsgFromDestIsEndBody(
 		std::optional<std::_Rb_tree_iterator<std::pair<const std::pair<int, int>, Proxy::ProxyManager::EndBodyParameters>>> endBodyParams,
 		const std::vector<char>& message) {
 
-	// bool should_close = false;
 	if(isMsgFromDest) {
 		LoggerLogStatusWithLineAndFile("end body", static_cast<int>((*endBodyParams)->second.endBodyMethod));
 		if((*endBodyParams)->second.endBodyMethod == Proxy::EndBodyMethod::CHUNK) {
@@ -429,8 +411,6 @@ void Server::setShouldCloseSocketsBcsInMsgFromDestIsEndBody(
 			(*endBodyParams)->second.shouldBeClosed = true;
 		}
 	}
-
-	// return should_close;
 }
 
 void Server::closeSocketsAndCleanStructures(int receiving_socket, int pairSocket) {
