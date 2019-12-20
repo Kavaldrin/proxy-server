@@ -6,6 +6,7 @@
 #include <vector>
 #include <type_traits>
 #include <set>
+#include <deque>
 
 namespace Proxy
 {
@@ -16,7 +17,6 @@ class ProxyManager
 
 public:
 
-    //a wiesz co nigdy nie uzywalem perfect forwardingu mysle ze czas gdy pali nam sie dupa przez mase projektow jest odpowiedni
     template <typename T>
     bool addDataForDescriptor(int descriptor, T&& data) noexcept;
 
@@ -27,23 +27,21 @@ public:
     bool destroyEstablishedConnectionBySource(int source);
     bool destroyEstablishedConnectionByDestination(int destination);
     std::optional<int> getSecondSocketIfEstablishedConnection(int socket);
+    
 
     bool isDestination(int socket);
+    bool isSource(int socket);
 
 
 private:
 
-    //stac mnie na pamiec to nie lata 90
     std::unordered_map<int, int> m_sourceToDest;
     std::unordered_map<int, int> m_destToSource;
 
-    std::unordered_map< int, std::vector<char> > m_storage;
+    std::unordered_map< int, std::deque< std::vector<char> > > m_storage;
 };
 
 
-
-//lubie strzelac z armaty do wrobla
-//zeby grzesiowi bylo glupio ze takim panom inzynierom jak milosz f i kamil b kazal pisac taki gowno-programik
 template <typename T, typename _ = void>
 struct is_char_vector : std::false_type {};
 
@@ -66,9 +64,7 @@ bool ProxyManager::addDataForDescriptor(int descriptor, T&& data) noexcept
 {
     static_assert(is_char_vector<T>::value, "your type is not char vector daun");
 
-    if(m_storage.find(descriptor) != m_storage.end()){ return false; }
-    m_storage.insert( {descriptor, std::forward<T>(data)} );
-
+    m_storage[descriptor].push_back(std::forward<T>(data));
     return true;
 }
 

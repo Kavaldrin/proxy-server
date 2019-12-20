@@ -75,19 +75,25 @@ void Server::listen() {
 
 void Server::startPoll() {
 	while(1) {
+
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
-		std::cout << " pool " << std::endl;
+
 		int poll_result = poll(pollfd_list.data(), pollfd_list.size(), -1 /*no timeout */);
 
 		if (poll_result == ERROR_STATUS) {
 			logger.logStatusError("poll", poll_result);
 			return;
-		}
-		
+		}		
+
+		// for(auto& pollfd_element : pollfd_list)
+		// {
+		// 	std::cout << pollfd_element.fd << " ";
+		// }
+		// std::cout << std::endl;
+
 
 		for(auto& pollfd_element : pollfd_list) {
 
-			//std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			if (pollfd_element.revents & POLLIN) {
 
 				if(pollfd_element.fd == sock_receiving)
@@ -114,7 +120,7 @@ void Server::startPoll() {
 
 		for(const auto& soc : m_socketsToRemove)
 		{
-			std::cout <<"cos bylo?\n" << std::endl;
+			std::cout <<"closing socket " << soc  << std::endl;
 			pollfd_list.erase(std::remove_if(pollfd_list.begin(), pollfd_list.end(), [soc](const auto& s) { return soc == s.fd; } ));
 		}
 		m_socketsToRemove.clear();
@@ -136,7 +142,6 @@ void Server::accept() {
 
 	if(new_sock != ERROR_STATUS) {
 		std::cout << "accept status = " << new_sock;
-		//pollfd_list.push_back(pollfd{new_sock, POLLIN});
 		m_socketsToAdd.push_back( pollfd{new_sock, POLLIN} );
 		sock_sockData.push_back({new_sock, sender_addr_in});
 	}
@@ -156,9 +161,6 @@ std::pair<int, int> Server::connect(std::string destination, std::optional<std::
 	auto hostaddr = gethostbyname(destination.c_str());
 	if(hostaddr != NULL)
 	{
-		// std::cout << hostaddr->h_name << std::endl;
-		// std::cout << hostaddr->h_addr_list[0] << std::endl;
-
 		struct in_addr **addr_list;
 		addr_list = (struct in_addr **)hostaddr->h_addr_list;
 		char* ipAddr = inet_ntoa(*addr_list[0]);
@@ -182,19 +184,9 @@ std::pair<int, int> Server::connect(std::string destination, std::optional<std::
 		auto serv_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 	    setsockopt(serv_sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
 	
-		int status = ::connect(serv_sock, (sockaddr*) &dest, sizeof(sockaddr));
-		while(status == ERROR_STATUS)
-		{
-			if(errno != EINPROGRESS)
-			{
-				break;
-			}
-			status = ::connect(serv_sock, (sockaddr*) &dest, sizeof(sockaddr));
-		}
-		
+		::connect(serv_sock, (sockaddr*) &dest, sizeof(sockaddr));
 
-		//LoggerLogStatusErrorWithLineAndFile("returning almost ocnnected socket", status);
-		return {0 , serv_sock};
+		return { errno == EINPROGRESS ? 0 : -1 , serv_sock};
 		
 	}
 	else {
@@ -208,12 +200,11 @@ std::pair<int, int> Server::connect(std::string destination, std::optional<std::
 void Server::recvAndSend(int receiving_socket) {
 	
 
-	//recv(receiving_socket);
 }
 
 bool Server::send(int socket) noexcept
 {
-	//std::this_thread::sleep_for(std::chrono::seconds(1));
+
 	auto [shouldChangeSocketState, shouldRemoveSocket] =  m_proxyManager.handleStoredBuffers(socket);
 	if(shouldRemoveSocket)
 	{
@@ -224,34 +215,41 @@ bool Server::send(int socket) noexcept
 
 bool Server::recv(int receiving_socket) noexcept {
 	
-			//std::this_thread::sleep_for(std::chrono::seconds(1));
 
 	auto [message, isSocketClosed] = receiver.recv(receiving_socket);	
 	
-	std::cout << message.size() << std::endl;
 
-
-	if(message.empty())
-	{
-		std::cout << "empty\n";
-		return true;
-	}
-
-
-	//if possible
 	if(m_proxyManager.isDestination(receiving_socket) && message.empty() && isSocketClosed)
 	{
-		std::cout << " destroying\n";
 		m_proxyManager.destroyEstablishedConnectionByDestination(receiving_socket);
+		m_socketsToRemove.push_back(receiving_socket);
 		return false;
 	}
-
+	else if(m_proxyManager.isSource(receiving_socket) && message.empty() && isSocketClosed)
+	{
+		m_proxyManager.destroyEstablishedConnectionBySource(receiving_socket);
+		m_socketsToRemove.push_back(receiving_socket);
+		return false;
+	}
+	else if(message.empty())
+	{
+		m_socketsToRemove.push_back(receiving_socket);
+		return false;
+	}
 
 	if(auto pairSocket = m_proxyManager.getSecondSocketIfEstablishedConnection(receiving_socket);
 		pairSocket.has_value())
 	{
+		std::cout << pairSocket.value() << "<->" << receiving_socket << std::endl;
 		m_proxyManager.addDataForDescriptor(pairSocket.value(), std::move(message));
-		return true;
+
+		if(auto pollfdPos = std::find_if(pollfd_list.begin(), pollfd_list.end(), [&](auto& el)
+			{ return el.fd == pairSocket.value(); }); pollfdPos != pollfd_list.end())
+		{
+			pollfdPos->events = POLLOUT;
+		}
+
+		return false;
 	}
 
 	ParserHttp parser{ std::string_view(message.data(), message.size()) };
@@ -273,18 +271,23 @@ bool Server::recv(int receiving_socket) noexcept {
 				if(status == ERROR_STATUS)
 				{
 					LoggerLogStatusErrorWithLineAndFile("CONNECT connection failed\n", status);
-					return true;
+					return false;
 				}
 
-				//pollfd_list.push_back(pollfd{new_sock, POLLOUT});
-				m_socketsToAdd.push_back( {new_sock, POLLOUT} );
+				m_socketsToAdd.push_back( {new_sock, 0} );
 				m_proxyManager.addEstablishedConnection(receiving_socket, new_sock);
-				//m_proxyManager.addDataForDescriptor(new_sock, std::move(message));
 
 				std::string okResponse = { "HTTP/1.1 200 Connection Established\r\n\r\n" };
 				std::cout << okResponse << std::endl;
 				m_proxyManager.addDataForDescriptor(receiving_socket, std::vector<char>(okResponse.begin(), okResponse.end()));
-				return true;
+
+				if(auto pollfdPos = std::find_if(pollfd_list.begin(), pollfd_list.end(), [&](auto& el)
+					{ return el.fd == receiving_socket; }); pollfdPos != pollfd_list.end())
+				{
+					pollfdPos->events = POLLOUT;
+				}
+
+				return false;
 			}
 			
 		}
@@ -298,14 +301,13 @@ bool Server::recv(int receiving_socket) noexcept {
 				if(status == ERROR_STATUS)
 				{
 					LoggerLogStatusErrorWithLineAndFile("NOT-CONNECT connection failed\n", status);
-					return true;
+					return false;
 				}
 
-				//pollfd_list.push_back(pollfd{new_sock, POLLOUT});
 				m_socketsToAdd.push_back( {new_sock, POLLOUT} );
 				m_proxyManager.addEstablishedConnection(receiving_socket, new_sock);
 				m_proxyManager.addDataForDescriptor(new_sock, std::move(message));
-				return true;
+				return false;
 			}
 		}
 	}
@@ -316,122 +318,6 @@ bool Server::recv(int receiving_socket) noexcept {
 		return true;
 	}
 	
-	return true;
+	return false;
 }
 
-
-
-
-
-
-
-
-
-
-// void Server::send(int receiving_socket, const std::optional<HttpRequest_t>& request) {
-
-// 	if(request->find("METHOD")->second == "GET") {
-// 		std::vector<std::string> host;
-
-// 		auto host_name = request->find("Host");
-// 		std::cout << host_name->second << std::endl;
-// 		if(host_name != request->end()){
-// 			boost::split(host, host_name->second, boost::is_any_of(":"));
-// 			std::cout << host[0]<< std::endl;
-// 			if(host.size() == 1)
-// 				host.push_back("80");
-
-// 			std::cout << "konec: " << host[0] << " " << host[1] << std::endl;
-// 		}
-// 		else std::cout << "no host name\n";
-
-// 		host[0].erase(std::remove_if(host[0].begin(), host[0].end(), [&](const auto& ch){ return (ch == '\n' || ch == '\r'); } ));
-
-// 		host[0] += '\0';
-// 		std::cout << "A" << host[0].c_str() << "A" << std::endl;
-// 		auto hostaddr = gethostbyname(host[0].c_str());
-// 		//auto hostaddr = gethostbyname("www.fis.agh.edu.pl");
-// 		if(hostaddr != NULL){
-// 			// std::cout << hostaddr->h_name << std::endl;
-// 			// std::cout << hostaddr->h_addr_list[0] << std::endl;
-
-// 			struct in_addr **addr_list;
-// 			addr_list = (struct in_addr **)hostaddr->h_addr_list;
-// 			char* ipAddr = inet_ntoa(*addr_list[0]);
-// 			std::cout << ipAddr << std::endl;
-// 		}
-// 		else {
-// 			std::cout << "NULL\n";
-// 			std::cout << strerror(h_errno) << std::endl;
-// 		}
-
-// 		
-// 		if (serv_sock == ERROR_STATUS) {
-// 			logger.logStatusError("socket", serv_sock);
-// 			return;
-// 		}
-
-// 		int optval = 1;
-//		auto serv_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
-// 	    setsockopt(serv_sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
-
-// 	    sockaddr_in address;
-// 	    address.sin_family = AF_INET;
-// 		address.sin_port = htons(std::stoi(host[1]));
-// 		address.sin_addr.s_addr = *(long *)(hostaddr->h_addr_list[0]);
-
-// 		// while(1){
-// 		//     auto connect_status = ::connect(serv_sock, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
-
-// 		// 	if (connect_status == -1) {
-// 		// 		logger.logStatusError("connect", connect_status);
-// 		// 		// if(errno != EINPROGRESS)
-// 		// 			// return;
-// 		// 	}
-// 		// 	else break;
-// 		// }
-// 		std::this_thread::sleep_for(std::chrono::seconds(2));
-
-// 		auto msg = request->find("MSG")->second;
-
-// 		auto send_status = ::send(serv_sock, msg.c_str(), msg.length(), 0);
-
-// 		if (send_status == -1) {
-// 			logger.logStatusError("send", send_status);
-// 			return;
-// 		}
-
-// 		std::array<char, 8196> buffer;
-// 		int recv_status;
-// 		while(1){
-// 		recv_status = ::recv(serv_sock, buffer.data(), buffer.max_size(), 0);
-
-// 		if (recv_status == ERROR_STATUS) {
-// 			logger.logStatusError("recv", recv_status);
-// 			// return;
-// 		}
-// 		else break;	
-// 		}
-
-// 		std::string response{buffer.begin(), buffer.begin() + recv_status};
-
-// 		send_status = ::send(receiving_socket, response.c_str(), response.length(), 0);
-
-// 		logger.logStatus("send", send_status);
-// 		receiver.saveSocketToClose(receiving_socket);
-// 		return;
-// 	}
-
-// 	auto response = HttpResponseBuilder(request->find("PATH")->second).build();
-// 	std::cout << "send\n" << response;
-
-// 	auto send_status = ::send(receiving_socket, response.c_str(), response.length(), 0);
-
-// 	if (send_status == ERROR_STATUS) {
-// 		logger.logStatusError("send", send_status);
-// 		return;
-// 	}
-
-// 	logger.logStatus("send", send_status);
-// 	receiver.saveSocketToClose(receiving_socket);
-// }

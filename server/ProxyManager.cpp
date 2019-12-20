@@ -6,18 +6,26 @@
 
 using namespace Proxy;
 
+constexpr bool SHOULD_CHANGE_SOCKET_STATE = true;
+constexpr bool SHOULD_CLOSE_SOCKET = true;
 
 std::pair<bool, bool> ProxyManager::handleStoredBuffers(int fd) noexcept
 {
 
     if(m_storage.find(fd) == m_storage.end())
     {
-        return {false, false};
+        LoggerLogStatusErrorWithLineAndFile("fatal error in poll logic\n", 0);
+        std::cout << fd << std::endl;
+        return {SHOULD_CHANGE_SOCKET_STATE, false};
     }
 
+    if(m_storage[fd].empty())
+    {
+        return {SHOULD_CHANGE_SOCKET_STATE, false};
+    }
 
-    int status = ::send(fd, m_storage.at(fd).data(), m_storage.at(fd).size(), MSG_DONTWAIT);
-    LoggerLogStatusErrorWithLineAndFile("send: ", status);
+    int status = ::send(fd, m_storage[fd].front().data(), m_storage[fd].front().size(), MSG_DONTWAIT);
+
     if(status == -1)
     {
         if( ! (errno == EAGAIN || errno == EWOULDBLOCK) )
@@ -30,27 +38,27 @@ std::pair<bool, bool> ProxyManager::handleStoredBuffers(int fd) noexcept
             LoggerLogStatusErrorWithLineAndFile("'might happend' sending error", status);
         }
     }
-    else if(status == (int)m_storage[fd].size())
+    else if(status == (int)m_storage[fd].front().size())
     {
-        m_storage.erase(m_storage.find(fd));
-        return {true, false};
+
+        m_storage[fd].pop_front();
+        if(m_storage[fd].empty())
+        {
+            return {SHOULD_CHANGE_SOCKET_STATE, false};
+        }
+        return {!SHOULD_CHANGE_SOCKET_STATE, false};
     }
     else
     {
         LoggerLogStatusErrorWithLineAndFile("something very strangeXD", status);
     }
 
-
     if(auto secondSoc = getSecondSocketIfEstablishedConnection(fd); ! secondSoc.has_value())
     {
-        //because we know there wont be more data to this socket
-        std::cout << "Closing socket\n";
-        ::close(fd);
-        return {true, true};
+        return {SHOULD_CHANGE_SOCKET_STATE, true};
     }
 
-
-    return {false, false};
+    return {SHOULD_CHANGE_SOCKET_STATE, false};
 
 }
 
@@ -113,5 +121,9 @@ std::optional<int> ProxyManager::getSecondSocketIfEstablishedConnection(int sock
 bool ProxyManager::isDestination(int socket)
 {
     return (m_destToSource.find(socket) != m_destToSource.end());
+}
 
+bool ProxyManager::isSource(int socket)
+{
+    return (m_sourceToDest.find(socket) != m_sourceToDest.end());
 }

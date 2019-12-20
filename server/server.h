@@ -41,6 +41,6 @@ private:
 	int backlog = SOMAXCONN;
 	sockaddr_in address;
 	Logger logger;
-	Receiver receiver{pollfd_list, sock_sockData};
+	Receiver receiver;
 };
 

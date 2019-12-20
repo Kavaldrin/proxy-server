@@ -77,12 +77,13 @@ std::optional<std::string> ParserHttp::parseMethod() {
 std::string ParserHttp::parsePath() {
 	http_request.insert({"PATH", std::string{start_line[1].begin()+1, start_line[1].end()}});
 	auto result = std::string{start_line[1].begin(), start_line[1].end()};
-	std::remove_if(result.begin(), result.end(), 
+	std::cout << result.size() << std::endl;
+	result.erase(std::remove_if(result.begin(), result.end(), 
 	[&](const auto& ch)
 		{
 			return ch == '\n' || ch == '\r';
 		}
-	);
+	), result.end());
 
 	return result;
 }
@@ -134,6 +135,7 @@ bool ParserHttp::isHTTPRequest() noexcept
 std::pair < std::optional<std::string>, std::optional <std::string> > ParserHttp::getBaseAddress(std::string address) noexcept
 {
 
+	std::cout << address << std::endl;
 	int startPos = 0;
 	for(auto& possibleBegining : {"http://", "https://"})
 	{
@@ -164,7 +166,7 @@ std::pair < std::optional<std::string>, std::optional <std::string> > ParserHttp
 		}
 	}
 
-	for(auto& possibleEnd : {".com", ".pl"})
+	for(auto& possibleEnd : {".com", ".pl", ".net"})
 	{
 		auto pos = tempView.find(possibleEnd);
 		if(pos != std::string::npos)
