@@ -50,7 +50,7 @@ std::pair<bool, bool> ProxyManager::handleStoredBuffers(int fd) noexcept
     }
     else
     {
-        LoggerLogStatusErrorWithLineAndFile("something very strangeXD", status);
+        LoggerLogStatusErrorWithLineAndFile("strange error", status);
     }
 
     if(auto secondSoc = getSecondSocketIfEstablishedConnection(fd); ! secondSoc.has_value())
@@ -109,12 +109,12 @@ std::optional<int> ProxyManager::getSecondSocketIfEstablishedConnection(int sock
     {
         return searchResult->second;
     }
-    
+
     if(auto searchResult = m_destToSource.find(socket); searchResult != m_destToSource.end())
     {
         return searchResult->second;
     }
-    
+
     return {};
 }
 
