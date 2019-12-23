@@ -31,15 +31,6 @@ struct Logger {
 		std::cerr << file << " " << line << std::endl;
 		logStatus(operation_name, status);
 	}
-
-
-
-	// void print_rcvd_msg(const std::vector<std::pair<int, sockaddr_in>>::iterator sock_data_elem, const std::string& msg) const {
-	// std::cout << "recv from"
-	//       << " address = " << inet_ntoa(sock_data_elem->second.sin_addr)
-	//   	  << " port = " << ntohs(sock_data_elem->second.sin_port)
-	// 	  << " msg: "<< msg << std::endl;
-	// }
 };
 
 #define LoggerLogStatusErrorWithLineAndFile(operation_name, status) \

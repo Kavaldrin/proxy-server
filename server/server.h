@@ -30,7 +30,6 @@ private:
 	void recvAndSend(int receiving_socket);
 	bool recv(int socket) noexcept;
 	bool send(int socket) noexcept;
-	//void send(int receiving_socket, const std::optional<HttpRequest_t>& buffer);
 	std::pair<int, int> connect(std::string destination, std::optional<std::string> = {});
 
 	std::string m_account_number;

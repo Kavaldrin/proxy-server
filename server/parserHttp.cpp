@@ -78,7 +78,7 @@ std::string ParserHttp::parsePath() {
 	http_request.insert({"PATH", std::string{start_line[1].begin()+1, start_line[1].end()}});
 	auto result = std::string{start_line[1].begin(), start_line[1].end()};
 	std::cout << result.size() << std::endl;
-	result.erase(std::remove_if(result.begin(), result.end(), 
+	result.erase(std::remove_if(result.begin(), result.end(),
 	[&](const auto& ch)
 		{
 			return ch == '\n' || ch == '\r';
@@ -88,7 +88,6 @@ std::string ParserHttp::parsePath() {
 	return result;
 }
 
-// void ParserHttp::parseQueryString() {}
 
 void ParserHttp::parseHttpMethod() {
 
@@ -97,7 +96,6 @@ void ParserHttp::parseHttpMethod() {
 void ParserHttp::parseHeader() {
 	try {
 		auto end_of_section = msg.find(END_OF_HEADERS);
-		//TO DO if end=_of_section > 8k odrzucamy
 
 		std::string header{msg.begin()+end_of_previous_section + NEW_LINE_FROM_PREVIOUS_SECTION,
 						   msg.begin()+end_of_section};
@@ -118,7 +116,7 @@ void ParserHttp::parseHeaders(std::vector<std::string>& headers) {
 		boost::algorithm::split_regex(headerName_headerVal, header, boost::regex(": "));
 		http_request.insert({headerName_headerVal[0], headerName_headerVal[1]});
 
-		std::cout << "h " << headerName_headerVal[0] << ": " 
+		std::cout << "h " << headerName_headerVal[0] << ": "
 		                  << headerName_headerVal[1] << std::endl;
 	}
 }

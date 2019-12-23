@@ -11,13 +11,12 @@ using HttpRequest_t = std::map<std::string, std::string>;
 class ParserHttp {
 public:
 	ParserHttp(const std::string_view& p_msg) : msg{p_msg} {};
-	
+
 	std::optional<HttpRequest_t> parse();
 
 	std::pair< std::optional<std::string>, std::optional<std::string> >  parseStartLine();
 	std::optional<std::string> parseMethod();
 	std::string parsePath();
-	// void parseQueryString();
 	void parseHttpMethod();
 
 	void parseHeaders(std::vector<std::string>& headers);

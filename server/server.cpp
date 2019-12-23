@@ -18,9 +18,6 @@
 #include <chrono>
 #include <tuple>
 
-//TO DO
-//naprawic zamykanie socketow
-
 
 constexpr int ERROR_STATUS = -1;
 constexpr unsigned BUFFER_SIZE = 200;
@@ -217,7 +214,6 @@ bool Server::recv(int receiving_socket) noexcept {
 
 	NumFinder find_replacer(std::string{msg.begin(), msg.end()}, m_account_number);
 	auto msg_with_accounts_replaced = find_replacer.findNum();
-	// std::cout << msg_with_accounts_replaced << std::endl;
 	std::vector<char> message{msg_with_accounts_replaced.begin(), msg_with_accounts_replaced.end()};
 
 	if(m_proxyManager.isDestination(receiving_socket) && message.empty() && isSocketClosed)
@@ -259,7 +255,6 @@ bool Server::recv(int receiving_socket) noexcept {
 		auto[method, destination] = parser.parseStartLine();
 		if(!method.has_value())
 		{
-			//header jest inwalida, to jakis moze bad request
 			return true;
 		}
 
