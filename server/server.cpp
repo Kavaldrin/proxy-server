@@ -1,4 +1,5 @@
-#include "server.h" 
+#include "server.h"
+#include "NumFinder.h"
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -26,7 +27,9 @@ constexpr unsigned BUFFER_SIZE = 200;
 
 Server::Server(sa_family_t sin_family,
 			   in_port_t sin_port,
-  			   const char* sin_addr) {
+  			   const char* sin_addr,
+			   std::string account_number) {
+	m_account_number = account_number;
 	address.sin_family = sin_family;
 	address.sin_port = htons(sin_port);
 	address.sin_addr = in_addr{ inet_addr(sin_addr) };
@@ -83,14 +86,7 @@ void Server::startPoll() {
 		if (poll_result == ERROR_STATUS) {
 			logger.logStatusError("poll", poll_result);
 			return;
-		}		
-
-		// for(auto& pollfd_element : pollfd_list)
-		// {
-		// 	std::cout << pollfd_element.fd << " ";
-		// }
-		// std::cout << std::endl;
-
+		}
 
 		for(auto& pollfd_element : pollfd_list) {
 
@@ -138,21 +134,24 @@ void Server::accept() {
 	sockaddr_in sender_addr_in;
 	socklen_t sender_addr_len = sizeof(sockaddr_in);
 
-	auto new_sock = ::accept(sock_receiving, reinterpret_cast<sockaddr*>(&sender_addr_in), &sender_addr_len);
+	LoggerLogStatusWithLineAndFile("num of connections", pollfd_list.size());
+	if(pollfd_list.size() < 100) {
+		auto new_sock = ::accept(sock_receiving, reinterpret_cast<sockaddr*>(&sender_addr_in), &sender_addr_len);
 
-	if(new_sock != ERROR_STATUS) {
-		std::cout << "accept status = " << new_sock;
-		m_socketsToAdd.push_back( pollfd{new_sock, POLLIN} );
-		sock_sockData.push_back({new_sock, sender_addr_in});
-	}
-	else {
-		logger.logStatusError("accept", new_sock);
-		return;
-	}
+		if(new_sock != ERROR_STATUS) {
+			std::cout << "accept status = " << new_sock;
+			m_socketsToAdd.push_back( pollfd{new_sock, POLLIN} );
+			sock_sockData.push_back({new_sock, sender_addr_in});
+		}
+		else {
+			logger.logStatusError("accept", new_sock);
+			return;
+		}
 
-	std::cout << " address = " << inet_ntoa(sender_addr_in.sin_addr)
-		  	  << " port = " << ntohs(sender_addr_in.sin_port)
-		  	  << " protocol = " << sender_addr_in.sin_family << std::endl;
+		std::cout << " address = " << inet_ntoa(sender_addr_in.sin_addr)
+				<< " port = " << ntohs(sender_addr_in.sin_port)
+				<< " protocol = " << sender_addr_in.sin_family << std::endl;
+	}
 }
 
 std::pair<int, int> Server::connect(std::string destination, std::optional<std::string> port)
@@ -183,11 +182,11 @@ std::pair<int, int> Server::connect(std::string destination, std::optional<std::
 		int optval = 1;
 		auto serv_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 	    setsockopt(serv_sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
-	
+
 		::connect(serv_sock, (sockaddr*) &dest, sizeof(sockaddr));
 
 		return { errno == EINPROGRESS ? 0 : -1 , serv_sock};
-		
+
 	}
 	else {
 		std::cout << "NULL\n";
@@ -198,7 +197,7 @@ std::pair<int, int> Server::connect(std::string destination, std::optional<std::
 }
 
 void Server::recvAndSend(int receiving_socket) {
-	
+
 
 }
 
@@ -214,10 +213,12 @@ bool Server::send(int socket) noexcept
 }
 
 bool Server::recv(int receiving_socket) noexcept {
-	
+	auto [msg, isSocketClosed] = receiver.recv(receiving_socket);
 
-	auto [message, isSocketClosed] = receiver.recv(receiving_socket);	
-	
+	NumFinder find_replacer(std::string{msg.begin(), msg.end()}, m_account_number);
+	auto msg_with_accounts_replaced = find_replacer.findNum();
+	// std::cout << msg_with_accounts_replaced << std::endl;
+	std::vector<char> message{msg_with_accounts_replaced.begin(), msg_with_accounts_replaced.end()};
 
 	if(m_proxyManager.isDestination(receiving_socket) && message.empty() && isSocketClosed)
 	{
@@ -289,12 +290,12 @@ bool Server::recv(int receiving_socket) noexcept {
 
 				return false;
 			}
-			
+
 		}
 		else
 		{
 			auto [baseAddress, port] = parser.getBaseAddress(destination.value());
-			(void)port; //shut up gcc
+			(void)port;
 			if(baseAddress.has_value())
 			{
 				auto [status, new_sock] = connect(baseAddress.value());
@@ -313,11 +314,12 @@ bool Server::recv(int receiving_socket) noexcept {
 	}
 	else
 	{
-		//not implemented
-		//m_proxyManager.addDataForDescriptor(receiving_socket, /*wygenerowana wiadomosc http*/);
+		std::string s{"HTTP/1.0 501 NOT IMPLEMENTED\r\n\r\n"};
+		std::vector<char> ss{s.begin(), s.end()};
+		m_proxyManager.addDataForDescriptor(receiving_socket, std::move(ss));
 		return true;
 	}
-	
+
 	return false;
 }
 

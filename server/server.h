@@ -17,7 +17,8 @@ class Server {
 public:
 	Server(sa_family_t sin_family,
 		   in_port_t sin_port,
-  		   const char* sin_addr);
+  		   const char* sin_addr,
+		   std::string account_number);
 
 	void createSocket(int domain, int type, int protocol);
 	void bindSocket(socklen_t address_len);
@@ -32,6 +33,7 @@ private:
 	//void send(int receiving_socket, const std::optional<HttpRequest_t>& buffer);
 	std::pair<int, int> connect(std::string destination, std::optional<std::string> = {});
 
+	std::string m_account_number;
 	int sock_receiving;
 	std::vector<pollfd> pollfd_list;
 	std::vector<std::pair<int, sockaddr_in>> sock_sockData;

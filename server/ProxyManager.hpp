@@ -27,7 +27,7 @@ public:
     bool destroyEstablishedConnectionBySource(int source);
     bool destroyEstablishedConnectionByDestination(int destination);
     std::optional<int> getSecondSocketIfEstablishedConnection(int socket);
-    
+
 
     bool isDestination(int socket);
     bool isSource(int socket);
@@ -62,7 +62,7 @@ struct is_char_vector< U,
 template <typename T>
 bool ProxyManager::addDataForDescriptor(int descriptor, T&& data) noexcept
 {
-    static_assert(is_char_vector<T>::value, "your type is not char vector daun");
+    static_assert(is_char_vector<T>::value, "your type is not char vector");
 
     m_storage[descriptor].push_back(std::forward<T>(data));
     return true;
